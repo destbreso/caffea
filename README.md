@@ -65,8 +65,8 @@ set.
 
 | Zipf 0.99, cache size | caffea (W-TinyLFU) | plain LRU | vs LRU |
 | --- | ---: | ---: | ---: |
-| 0.1% of footprint | 27.8% | 15.3% | +82% |
-| 1% of footprint | 49.6% | 39.6% | +25% |
+| 0.1% of footprint | 28.1% | 15.3% | +84% |
+| 1% of footprint | 49.8% | 39.6% | +26% |
 | 10% of footprint | 71.7% | 66.3% | +8% |
 
 caffea lands in the top group with LFU, SIEVE and S3-FIFO, a hair under Belady's
