@@ -143,3 +143,98 @@ describe("Cache (window + SLRU storage)", () => {
     expect(() => new Cache(2.5)).toThrow(RangeError);
   });
 });
+
+describe("Cache TTL", () => {
+  it("expires an entry after its per-call ttl", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now });
+    c.set("a", 1, 100); // lives 100ms
+    now = 50;
+    expect(c.get("a")).toBe(1); // still fresh
+    now = 150;
+    expect(c.get("a")).toBeUndefined(); // expired => a miss
+    expect(c.stats().misses).toBe(1);
+  });
+
+  it("frees the slot when an expired entry is accessed", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now });
+    c.set("a", 1, 10);
+    expect(c.size).toBe(1);
+    now = 100;
+    expect(c.get("a")).toBeUndefined();
+    expect(c.size).toBe(0); // the dead entry was unlinked on access
+  });
+
+  it("applies the cache-wide default ttl to every entry", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now, ttl: 30 });
+    c.set("a", 1);
+    c.set("b", 2);
+    now = 20;
+    expect(c.get("a")).toBe(1);
+    now = 40;
+    expect(c.get("a")).toBeUndefined();
+    expect(c.get("b")).toBeUndefined();
+  });
+
+  it("lets a per-call ttl override the default", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now, ttl: 1000 });
+    c.set("short", 1, 10); // overrides the 1000ms default downward
+    now = 50;
+    expect(c.get("short")).toBeUndefined(); // gone at 50ms
+    c.set("long", 2); // uses the 1000ms default
+    now = 500;
+    expect(c.get("long")).toBe(2); // still alive
+  });
+
+  it("never expires an entry with no ttl and no default", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now });
+    c.set("forever", 1);
+    now = 1e12;
+    expect(c.get("forever")).toBe(1);
+  });
+
+  it("refreshes expiry when a key is written again", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now });
+    c.set("a", 1, 100);
+    now = 80;
+    c.set("a", 2, 100); // rewrite resets the clock: expires at 180
+    now = 150;
+    expect(c.get("a")).toBe(2); // would have died at 100, but was refreshed
+    now = 200;
+    expect(c.get("a")).toBeUndefined();
+  });
+
+  it("treats expired entries as absent for has and peek", () => {
+    let now = 0;
+    const c = new Cache<string, number>(100, { clock: () => now });
+    c.set("a", 1, 10);
+    now = 50;
+    expect(c.has("a")).toBe(false);
+    expect(c.peek("a")).toBeUndefined();
+  });
+
+  it("stays bounded and does not throw with TTLs under a flood", () => {
+    let now = 0;
+    const cap = 32;
+    const c = new Cache<number, number>(cap, { clock: () => now, ttl: 5 });
+    for (let i = 0; i < cap * 20; i++) {
+      c.set(i, i);
+      now += 1; // time marches, so older entries expire mid-run
+      expect(c.size).toBeLessThanOrEqual(cap);
+    }
+  });
+
+  it("rejects invalid ttl values", () => {
+    expect(() => new Cache(10, { ttl: 0 })).toThrow(RangeError);
+    expect(() => new Cache(10, { ttl: -5 })).toThrow(RangeError);
+    expect(() => new Cache(10, { ttl: Infinity })).toThrow(RangeError);
+    const c = new Cache<string, number>(10);
+    expect(() => c.set("a", 1, 0)).toThrow(RangeError);
+    expect(() => c.set("a", 1, -1)).toThrow(RangeError);
+  });
+});

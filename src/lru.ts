@@ -13,6 +13,8 @@ export class Node<K, V> {
   segment = 0;
   /** 32-bit hash of the key, computed once, used by the frequency sketch. */
   hash = 0;
+  /** Absolute expiry in clock-ms; `Infinity` means the entry never expires. */
+  expiresAt = Infinity;
   constructor(
     public key: K,
     public value: V,

@@ -6,19 +6,24 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-
-- Hit-ratio bake-off (`bench/bakeoff.mjs`, `npm run bench:cache`): drives caffea,
-  a textbook LRU, and a textbook in-cache LFU through identical seeded traces
-  (Zipfian skew, scan pollution, and a shifting working set) and reports hit
-  ratio, scoring all three with one `has`-gated driver so no key is double
-  counted. caffea is the only policy that is never the worst: it beats LRU by
-  ~9-10 points on skew and scan, and it beats a no-aging LFU by ~32 points on the
-  shifting workload (where LFU gets stuck on stale keys).
-
 ### Next
 
-- TTL (per-entry expiry), a pluggable eviction policy, and `memo` / `adaptiveMemo`.
+- A pluggable eviction policy (LRU / LFU / W-TinyLFU behind one interface) and
+  `memo` / `adaptiveMemo` wrappers for the "cache this function" case.
+
+## [0.3.0]
+
+### Added
+
+- TTL (expire after write). `new Cache(cap, { ttl })` sets a cache-wide default;
+  `set(key, value, ttl)` overrides it per entry; omit both and entries never
+  expire. Expiry is lazy: an expired entry reads as a miss and is unlinked on the
+  next access, and it is the preferred (free) victim if the eviction policy meets
+  it first. The clock is injectable via `options.clock` (defaults to `Date.now`)
+  so expiry is deterministic under test. Invalid TTLs throw `RangeError`. Covered
+  by tests (per-entry and default expiry, override, never-expire, refresh on
+  write, cleanup on access, `has` / `peek` semantics, bounded eviction with TTLs).
+- Exported the `CacheOptions` type.
 
 ## [0.2.0]
 
@@ -35,6 +40,13 @@ to [Semantic Versioning](https://semver.org/).
   list for O(1) moves between segments. Covered by tests (bounded size under
   load, scan resistance, a frequently requested key winning admission, and a high
   hit ratio on a skewed workload).
+- Hit-ratio bake-off (`bench/bakeoff.mjs`, `npm run bench:cache`): drives caffea,
+  a textbook LRU, and a textbook in-cache LFU through identical seeded traces
+  (Zipfian skew, scan pollution, and a shifting working set) and reports hit
+  ratio, scoring all three with one `has`-gated driver so no key is double
+  counted. caffea is the only policy that is never the worst: it beats LRU by
+  ~9-10 points on skew and scan, and it beats a no-aging LFU by ~32 points on the
+  shifting workload (where LFU gets stuck on stale keys).
 
 ## [0.1.0]
 

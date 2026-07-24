@@ -18,12 +18,13 @@ already owns the LRU default and does it well. The wedge here is the eviction
 with the policy swappable so you can run your own bake-off. This is my take on
 that gap, not the one true cache.
 
-> ### Status: early release (0.2.x)
+> ### Status: early release (0.3.x)
 > The **`Cache`** is here, and it is real W-TinyLFU: an LRU admission window in
 > front of a Segmented LRU main region, with a frequency sketch gating admission
-> so a scan cannot evict your hot set. TTL, a pluggable eviction policy, and the
-> published hit-ratio bake-off are landing next. The version is `0.x` on purpose:
-> the API can still move. See the [roadmap](#roadmap).
+> so a scan cannot evict your hot set, plus optional per-entry **TTL**. A
+> reproducible hit-ratio bake-off backs the claims. A pluggable eviction policy
+> and `memo` wrappers are next. The version is `0.x` on purpose: the API can
+> still move. See the [roadmap](#roadmap).
 
 ## Install
 
@@ -71,6 +72,18 @@ shapes pass your own `hash`:
 new Cache<MyKey, V>(1000, { hash: (k) => k.id });
 ```
 
+### Expiry (TTL)
+
+Give entries a time-to-live, cache-wide or per entry. Expiry is lazy: an expired
+entry reads as a miss and frees its slot on the next touch, so there are no
+timers to manage.
+
+```ts
+const sessions = new Cache<string, Session>(10_000, { ttl: 60_000 }); // 60s default
+sessions.set("sid:abc", session); //           expires 60s after this write
+sessions.set("sid:xyz", session, 5 * 60_000); // this one lives 5 minutes
+```
+
 ### Why it holds up under scans
 
 The cache records every access in a frequency sketch, and when it is full it
@@ -82,13 +95,17 @@ exactly where a plain LRU bleeds hit ratio.
 ## Cache API
 
 ### `new Cache<K, V>(capacity, options?)`
-A W-TinyLFU cache holding up to `capacity` entries. `options.hash?: (key: K) =>
-number` overrides the default key hasher; `options.random?: () => number`
-overrides the admission tie-break source (useful for deterministic tests).
-Throws `RangeError` if `capacity` is not a positive integer.
+A W-TinyLFU cache holding up to `capacity` entries. Options: `hash?: (key: K) =>
+number` overrides the default key hasher; `random?: () => number` overrides the
+admission tie-break source; `ttl?: number` sets a default per-entry lifetime in
+milliseconds (omit for no expiry); `clock?: () => number` overrides the time
+source (defaults to `Date.now`, injectable for deterministic tests). Throws
+`RangeError` if `capacity` is not a positive integer or `ttl` is not positive.
 
-### `cache.get(key)` / `cache.set(key, value)`
-Read (recording a use, which can promote the entry) and insert-or-update.
+### `cache.get(key)` / `cache.set(key, value, ttl?)`
+Read (recording a use, which can promote the entry) and insert-or-update. A
+per-call `ttl` (milliseconds) overrides the cache-wide default for that entry,
+and every write refreshes the entry's expiry.
 
 ### `cache.peek(key)` / `cache.has(key)` / `cache.delete(key)` / `cache.clear()`
 `peek` reads without recording a use; the others are the obvious operations.
@@ -197,7 +214,7 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 - [x] `Window` (LRU ~1%) + `SLRU` main (probation / protected ~80%)
 - [x] Admission gate: candidate-vs-victim frequency + randomized tie-break
 - [x] `Cache`: `get / set / has / delete / peek / clear`, `.stats()`
-- [ ] TTL (per-entry expiry)
+- [x] TTL (cache-wide default + per-call override, injectable clock)
 - [ ] Pluggable `EvictionPolicy` interface (LRU / LFU / W-TinyLFU)
 - [ ] `memo` / `adaptiveMemo`
 - [x] Hit-ratio bake-off (seeded Zipfian / scan / shifting traces vs LRU / LFU)

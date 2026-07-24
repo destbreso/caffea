@@ -28,6 +28,17 @@ export interface CacheOptions<K> {
    * Inject a deterministic source in tests.
    */
   random?: () => number;
+  /**
+   * Default time-to-live in milliseconds, applied to every entry (expire after
+   * write). Omit for entries that never expire by default; a per-call `ttl` on
+   * `set` overrides it. Must be a positive, finite number when given.
+   */
+  ttl?: number;
+  /**
+   * Current time in milliseconds. Defaults to `Date.now`. Inject a controllable
+   * clock in tests so expiry is deterministic.
+   */
+  clock?: () => number;
 }
 
 /** FNV-1a over the string form of a key; integers pass straight through. */
@@ -42,6 +53,16 @@ function defaultHash(key: unknown): number {
   return h >>> 0;
 }
 
+/** Validate a TTL argument (constructor default or per-call), in ms. */
+function checkTtl(ttl: number): number {
+  if (!Number.isFinite(ttl) || ttl <= 0) {
+    throw new RangeError(
+      `ttl must be a positive, finite number of milliseconds, got ${ttl}`,
+    );
+  }
+  return ttl;
+}
+
 /**
  * A fixed-capacity W-TinyLFU cache: a small LRU admission `window` in front of a
  * Segmented LRU `main` region (`probation` and `protected`), with a frequency
@@ -52,6 +73,10 @@ function defaultHash(key: unknown): number {
  * is admitted only if the sketch says it has been seen at least as often as the
  * victim it would replace. That single rule is what makes the cache resist scan
  * pollution: a key touched once cannot evict a proven-hot entry.
+ *
+ * Entries may also carry a TTL (expire after write). Expiry is lazy: an expired
+ * entry is treated as absent on the next access and unlinked then, and it is the
+ * preferred (free) victim if the eviction policy meets it first.
  */
 export class Cache<K, V> {
   private readonly map = new Map<K, Node<K, V>>();
@@ -61,6 +86,8 @@ export class Cache<K, V> {
   private readonly sketch: FrequencySketch;
   private readonly hasher: (key: K) => number;
   private readonly random: () => number;
+  private readonly clock: () => number;
+  private readonly defaultTtl: number | undefined;
 
   private readonly windowMax: number;
   private readonly protectedMax: number;
@@ -85,6 +112,9 @@ export class Cache<K, V> {
     this.sketch = new FrequencySketch(capacity);
     this.hasher = options.hash ?? (defaultHash as (key: K) => number);
     this.random = options.random ?? Math.random;
+    this.clock = options.clock ?? Date.now;
+    this.defaultTtl =
+      options.ttl === undefined ? undefined : checkTtl(options.ttl);
   }
 
   get size(): number {
@@ -99,18 +129,29 @@ export class Cache<K, V> {
       this._misses++;
       return undefined;
     }
+    if (this.isExpired(node)) {
+      this.sketch.increment(node.hash); // the request still counts
+      this.unlink(node);
+      this._misses++;
+      return undefined;
+    }
     this.sketch.increment(node.hash);
     this._hits++;
     this.onAccess(node);
     return node.value;
   }
 
-  /** Insert or update a key. */
-  set(key: K, value: V): void {
+  /**
+   * Insert or update a key. An optional `ttl` (milliseconds) overrides the
+   * cache-wide default for this entry; writing a key always refreshes its expiry.
+   */
+  set(key: K, value: V, ttl?: number): void {
+    const expiresAt = this.expiryFor(ttl);
     const existing = this.map.get(key);
     if (existing !== undefined) {
       this.sketch.increment(existing.hash);
       existing.value = value;
+      existing.expiresAt = expiresAt; // a write resets the TTL
       this.onAccess(existing);
       return;
     }
@@ -118,6 +159,7 @@ export class Cache<K, V> {
     this.sketch.increment(hash);
     const node = new Node(key, value);
     node.hash = hash;
+    node.expiresAt = expiresAt;
     node.segment = WINDOW;
     this.map.set(key, node);
     this.window.pushHead(node);
@@ -126,11 +168,19 @@ export class Cache<K, V> {
 
   /** Read without recording a use: no promotion, no hit/miss accounting. */
   peek(key: K): V | undefined {
-    return this.map.get(key)?.value;
+    const node = this.map.get(key);
+    if (node === undefined || this.isExpired(node)) return undefined;
+    return node.value;
   }
 
   has(key: K): boolean {
-    return this.map.has(key);
+    const node = this.map.get(key);
+    if (node === undefined) return false;
+    if (this.isExpired(node)) {
+      this.unlink(node);
+      return false;
+    }
+    return true;
   }
 
   delete(key: K): boolean {
@@ -164,6 +214,18 @@ export class Cache<K, V> {
   }
 
   // --- internals ---
+
+  /** Absolute expiry for a new/updated entry, given an optional per-call TTL. */
+  private expiryFor(ttl: number | undefined): number {
+    if (ttl !== undefined) return this.clock() + checkTtl(ttl);
+    if (this.defaultTtl !== undefined) return this.clock() + this.defaultTtl;
+    return Infinity;
+  }
+
+  /** True once the wall clock has reached the node's expiry (`Infinity` never). */
+  private isExpired(node: Node<K, V>): boolean {
+    return this.clock() >= node.expiresAt;
+  }
 
   private onAccess(node: Node<K, V>): void {
     switch (node.segment) {
@@ -211,6 +273,19 @@ export class Cache<K, V> {
     if (victim === null || victim === candidate) victim = this.protectedSeg.tail;
     if (victim === null || victim === candidate) {
       this.unlink(candidate);
+      this._evictions++;
+      return;
+    }
+
+    // A dead entry is the ideal victim: reclaim it without weighing frequency.
+    // If the candidate itself has expired on its way through the window, drop it.
+    if (this.isExpired(candidate)) {
+      this.unlink(candidate);
+      this._evictions++;
+      return;
+    }
+    if (this.isExpired(victim)) {
+      this.unlink(victim);
       this._evictions++;
       return;
     }
