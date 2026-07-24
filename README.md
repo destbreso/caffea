@@ -200,7 +200,7 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 - [ ] TTL (per-entry expiry)
 - [ ] Pluggable `EvictionPolicy` interface (LRU / LFU / W-TinyLFU)
 - [ ] `memo` / `adaptiveMemo`
-- [ ] Published hit-ratio bake-off (seeded Zipfian + bursty traces vs LRU / LFU)
+- [x] Hit-ratio bake-off (seeded Zipfian / scan / shifting traces vs LRU / LFU)
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),
 adaptive window resizing, and any distributed or multi-backend store (that is

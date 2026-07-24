@@ -6,10 +6,19 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Hit-ratio bake-off (`bench/bakeoff.mjs`, `npm run bench:cache`): drives caffea,
+  a textbook LRU, and a textbook in-cache LFU through identical seeded traces
+  (Zipfian skew, scan pollution, and a shifting working set) and reports hit
+  ratio, scoring all three with one `has`-gated driver so no key is double
+  counted. caffea is the only policy that is never the worst: it beats LRU by
+  ~9-10 points on skew and scan, and it beats a no-aging LFU by ~32 points on the
+  shifting workload (where LFU gets stuck on stale keys).
+
 ### Next
 
-- TTL (per-entry expiry), a pluggable eviction policy, `memo` / `adaptiveMemo`,
-  and a published hit-ratio bake-off (Zipfian + bursty traces vs LRU / LFU).
+- TTL (per-entry expiry), a pluggable eviction policy, and `memo` / `adaptiveMemo`.
 
 ## [0.2.0]
 
