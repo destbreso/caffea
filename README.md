@@ -48,6 +48,44 @@ dependencies.
   recency-aware instead of frozen in the past. This is the design behind
   [Caffeine](https://github.com/ben-manes/caffeine), the reference JVM cache.
 
+## Benchmarks
+
+caffea is measured against plain LRU, the popular npm caches, and the modern
+research policies (SIEVE, S3-FIFO, LFU) with an independent harness,
+[cache-arena](https://github.com/destbreso/cache-arena), on the same seeded
+workloads and through the same uniform driver. Caches are compared at equal
+**memory** (a segmented cache that secretly holds 2x its nominal size is sized
+down to match). Full tables, every workload, and the methodology live in
+[BENCHMARKS.md](./BENCHMARKS.md); the short version:
+
+**Hit ratio (efficiency).** On skewed (Zipfian) traffic, the common case, caffea
+returns markedly more hits than plain LRU at the same memory, and the gap is
+widest exactly where a cache hurts most: when it is small relative to the working
+set.
+
+| Zipf 0.99, cache size | caffea (W-TinyLFU) | plain LRU | vs LRU |
+| --- | ---: | ---: | ---: |
+| 0.1% of footprint | 27.8% | 15.3% | +82% |
+| 1% of footprint | 49.6% | 39.6% | +25% |
+| 10% of footprint | 71.7% | 66.3% | +8% |
+
+caffea lands in the top group with LFU, SIEVE and S3-FIFO, a hair under Belady's
+optimal (OPT), and it tracks `transitory` (the other npm W-TinyLFU) to within a
+rounding error: a cross-check that the implementation is sound. On a pure **loop**
+larger than the cache (LRU's textbook worst case) caffea is the only family that
+recovers any hits at all.
+
+![caffea vs the field on YCSB-skew Zipf](https://raw.githubusercontent.com/destbreso/caffea/main/charts/mrc-zipf-0-99.svg)
+
+**Throughput (the honest tradeoff).** Admission control is not free: caffea does
+more work per operation (a sketch lookup, sometimes an eviction decision) than a
+bare LRU map, so it is not the throughput leader. If your traffic is uniform or
+your cache comfortably holds the working set, LRU's simplicity may serve you
+better. caffea earns its keep when hit ratio is what matters and memory is tight.
+Efficiency numbers above are exact (a deterministic simulation); throughput is
+per-machine and per-implementation, reported with 95% confidence intervals in
+[BENCHMARKS.md](./BENCHMARKS.md).
+
 ## Quick start
 
 ```ts

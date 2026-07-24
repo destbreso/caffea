@@ -15,8 +15,10 @@ export type { WTinyLFUOptions } from "./w-tinylfu";
 export { registerPolicy, policyNames } from "./registry";
 export type { PolicyFactory } from "./registry";
 
-// The cache entry a custom policy receives and organizes.
+// The cache entry a custom policy receives and organizes, plus the intrusive
+// list primitive the built-in policies use (handy when writing your own).
 export type { Node } from "./list";
+export { IntrusiveList } from "./list";
 
 // Memoize a function on top of the cache (async-aware, with in-flight dedup).
 export { memo } from "./memo";
