@@ -11,6 +11,8 @@ export class Node<K, V> {
   next: Node<K, V> | null = null;
   /** Which segment currently holds this node (segment tags live in cache.ts). */
   segment = 0;
+  /** 32-bit hash of the key, computed once, used by the frequency sketch. */
+  hash = 0;
   constructor(
     public key: K,
     public value: V,

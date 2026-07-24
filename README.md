@@ -18,12 +18,12 @@ already owns the LRU default and does it well. The wedge here is the eviction
 with the policy swappable so you can run your own bake-off. This is my take on
 that gap, not the one true cache.
 
-> ### Status: early release (0.1.x)
-> The **frequency sketch**, the mathematical core behind W-TinyLFU admission, is
-> built and tested and ships today as a reusable primitive. The cache surface
-> (window + SLRU + admission gate + TTL) and the hit-ratio bake-off are landing
-> next, incrementally. The version is `0.x` on purpose: the API can still move.
-> See the [roadmap](#roadmap).
+> ### Status: early release (0.2.x)
+> The **`Cache`** is here, and it is real W-TinyLFU: an LRU admission window in
+> front of a Segmented LRU main region, with a frequency sketch gating admission
+> so a scan cannot evict your hot set. TTL, a pluggable eviction policy, and the
+> published hit-ratio bake-off are landing next. The version is `0.x` on purpose:
+> the API can still move. See the [roadmap](#roadmap).
 
 ## Install
 
@@ -47,11 +47,61 @@ dependencies.
   recency-aware instead of frozen in the past. This is the design behind
   [Caffeine](https://github.com/ben-manes/caffeine), the reference JVM cache.
 
-## What ships today: the frequency sketch
+## Quick start
+
+```ts
+import { Cache } from "caffea";
+
+const cache = new Cache<string, User>(10_000); // hold up to 10k entries
+
+cache.set("user:42", user);
+cache.get("user:42"); //  => user
+cache.get("user:999"); // => undefined (a miss)
+
+cache.has("user:42"); //  => true
+cache.peek("user:42"); // read without counting it as a use
+cache.delete("user:42");
+cache.stats(); // { size, capacity, hits, misses, evictions, hitRatio }
+```
+
+Keys can be any type. String and integer keys are hashed for you; for other key
+shapes pass your own `hash`:
+
+```ts
+new Cache<MyKey, V>(1000, { hash: (k) => k.id });
+```
+
+### Why it holds up under scans
+
+The cache records every access in a frequency sketch, and when it is full it
+admits a newcomer into the main region only if the sketch says that newcomer has
+been seen at least as often as the entry it would replace. A key touched once (a
+scan, a crawler, a one-off report) cannot evict a proven-hot entry, which is
+exactly where a plain LRU bleeds hit ratio.
+
+## Cache API
+
+### `new Cache<K, V>(capacity, options?)`
+A W-TinyLFU cache holding up to `capacity` entries. `options.hash?: (key: K) =>
+number` overrides the default key hasher; `options.random?: () => number`
+overrides the admission tie-break source (useful for deterministic tests).
+Throws `RangeError` if `capacity` is not a positive integer.
+
+### `cache.get(key)` / `cache.set(key, value)`
+Read (recording a use, which can promote the entry) and insert-or-update.
+
+### `cache.peek(key)` / `cache.has(key)` / `cache.delete(key)` / `cache.clear()`
+`peek` reads without recording a use; the others are the obvious operations.
+
+### `cache.stats()` / `cache.size` / `cache.capacity`
+`stats()` returns `{ size, capacity, hits, misses, evictions, hitRatio }`.
+
+## The frequency sketch (also usable on its own)
 
 `FrequencySketch` is a Count-Min Sketch with 4-bit saturating counters and
-periodic aging: the frequency estimator behind TinyLFU admission, usable on its
-own for any "how hot is this key, approximately and cheaply" question.
+periodic aging: the frequency estimator behind TinyLFU admission, and the engine
+the `Cache` uses internally. It is exported on its own for any "how hot is this
+key, approximately and cheaply" question.
 
 ```ts
 import { FrequencySketch } from "caffea";
@@ -71,8 +121,8 @@ sketch.frequency(7); //  => 0   (never seen)
 ### Hashing string keys
 
 The sketch takes a number so it stays a pure primitive. For string keys, hash
-them first (the cache layer will ship a default hasher; here is a compact
-FNV-1a for standalone use):
+them first (the `Cache` does this for you; here is a compact FNV-1a, the same one
+it uses, for the sketch on its own):
 
 ```ts
 function fnv1a(str: string): number {
@@ -144,12 +194,13 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 ## Roadmap
 
 - [x] `FrequencySketch` (Count-Min + 4-bit counters + aging) with correctness tests
-- [ ] `Window` (LRU ~1%) + `SLRU` main (probation ~20% / protected ~80%)
-- [ ] Admission gate: candidate-vs-victim frequency + randomized tie-break
-- [ ] `Cache`: `get / set / has / delete / peek / clear`, TTL, `.stats()`
+- [x] `Window` (LRU ~1%) + `SLRU` main (probation / protected ~80%)
+- [x] Admission gate: candidate-vs-victim frequency + randomized tie-break
+- [x] `Cache`: `get / set / has / delete / peek / clear`, `.stats()`
+- [ ] TTL (per-entry expiry)
 - [ ] Pluggable `EvictionPolicy` interface (LRU / LFU / W-TinyLFU)
 - [ ] `memo` / `adaptiveMemo`
-- [ ] Honest hit-ratio bake-off harness (seeded Zipfian + bursty traces)
+- [ ] Published hit-ratio bake-off (seeded Zipfian + bursty traces vs LRU / LFU)
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),
 adaptive window resizing, and any distributed or multi-backend store (that is

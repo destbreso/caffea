@@ -1,6 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { Cache } from "../src/cache";
 
+/** Deterministic PRNG so the workload tests never flake. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 describe("Cache (window + SLRU storage)", () => {
   it("stores and retrieves values", () => {
     const c = new Cache<string, number>(100);
@@ -46,6 +57,31 @@ describe("Cache (window + SLRU storage)", () => {
     }
     expect(c.has("hot")).toBe(true);
     expect(c.get("hot")).toBe("H");
+  });
+
+  it("admits a frequently requested key over cold one-hit churn", () => {
+    const c = new Cache<number, number>(20, { random: () => 0.99 });
+    for (let i = 0; i < 100; i++) c.set(1000 + i, i); // prime with cold keys
+    for (let round = 0; round < 60; round++) {
+      if (c.get(7) === undefined) c.set(7, 7); // request key 7 every round
+      c.set(2000 + round, round); // a fresh cold key competes for the slot
+    }
+    // key 7's frequency wins admission and keeps it resident through the churn
+    expect(c.has(7)).toBe(true);
+  });
+
+  it("achieves a high hit ratio on a skewed workload", () => {
+    const c = new Cache<number, number>(50, { random: () => 0.99 });
+    const rng = mulberry32(1);
+    const hot = 40; // the hot set fits within capacity
+    const coldTail = 5000;
+    for (let i = 0; i < 40000; i++) {
+      const key =
+        rng() < 0.8 ? (rng() * hot) | 0 : hot + ((rng() * coldTail) | 0);
+      if (c.get(key) === undefined) c.set(key, key);
+    }
+    // a good policy parks the hot set and answers most requests from it
+    expect(c.stats().hitRatio).toBeGreaterThan(0.6);
   });
 
   it("peek reads without recording a hit", () => {

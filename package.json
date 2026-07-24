@@ -1,6 +1,6 @@
 {
   "name": "caffea",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A modern, zero-dependency cache for JavaScript/TypeScript with a pluggable eviction policy: W-TinyLFU admission (Count-Min Sketch + SLRU) that beats plain LRU on skewed workloads. TypeScript-first.",
   "author": {
     "name": "David Estevez",

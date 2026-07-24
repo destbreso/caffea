@@ -1,4 +1,5 @@
 import { Node, IntrusiveList } from "./lru";
+import { FrequencySketch } from "./frequency-sketch";
 
 // Segment tags stored on each node.
 const WINDOW = 0;
@@ -15,25 +16,51 @@ export interface CacheStats {
   hitRatio: number;
 }
 
+export interface CacheOptions<K> {
+  /**
+   * Map a key to a 32-bit integer for the frequency sketch. The default handles
+   * strings (FNV-1a) and integers (passed through; the sketch mixes them). Pass
+   * your own for other key shapes.
+   */
+  hash?: (key: K) => number;
+  /**
+   * Source of randomness for the admission tie-break. Defaults to `Math.random`.
+   * Inject a deterministic source in tests.
+   */
+  random?: () => number;
+}
+
+/** FNV-1a over the string form of a key; integers pass straight through. */
+function defaultHash(key: unknown): number {
+  if (typeof key === "number" && Number.isInteger(key)) return key | 0;
+  const s = typeof key === "string" ? key : String(key);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 /**
- * A fixed-capacity in-memory cache laid out as W-TinyLFU's storage: a small LRU
- * admission `window` in front of a Segmented LRU `main` region (a `probation`
- * segment and a larger `protected` one). New keys enter the window; the entry
- * that ages out of the window becomes a candidate for the main region; a hit in
- * probation promotes an entry into protected, where the genuinely reused items
- * accumulate.
+ * A fixed-capacity W-TinyLFU cache: a small LRU admission `window` in front of a
+ * Segmented LRU `main` region (`probation` and `protected`), with a frequency
+ * sketch gating who is allowed into the main region.
  *
- * This is the storage layer. The frequency-based ADMISSION decision (should the
- * window's candidate displace the main region's victim?) is deliberately a
- * single overridable seam, `shouldAdmit`, which for now always admits. Wiring it
- * to the frequency sketch, the step that turns this into true W-TinyLFU and lets
- * it resist scan pollution, is the next phase.
+ * Every access is recorded in the sketch, so the cache knows roughly how hot
+ * each key is. When the cache is full and a candidate ages out of the window, it
+ * is admitted only if the sketch says it has been seen at least as often as the
+ * victim it would replace. That single rule is what makes the cache resist scan
+ * pollution: a key touched once cannot evict a proven-hot entry.
  */
 export class Cache<K, V> {
   private readonly map = new Map<K, Node<K, V>>();
   private readonly window = new IntrusiveList<K, V>();
   private readonly probation = new IntrusiveList<K, V>();
   private readonly protectedSeg = new IntrusiveList<K, V>();
+  private readonly sketch: FrequencySketch;
+  private readonly hasher: (key: K) => number;
+  private readonly random: () => number;
 
   private readonly windowMax: number;
   private readonly protectedMax: number;
@@ -43,7 +70,7 @@ export class Cache<K, V> {
   private _misses = 0;
   private _evictions = 0;
 
-  constructor(capacity: number) {
+  constructor(capacity: number, options: CacheOptions<K> = {}) {
     if (!Number.isInteger(capacity) || capacity < 1) {
       throw new RangeError(
         `Cache capacity must be a positive integer, got ${capacity}`,
@@ -55,6 +82,9 @@ export class Cache<K, V> {
     this.windowMax = Math.max(1, Math.round(capacity * 0.01));
     const mainMax = capacity - this.windowMax;
     this.protectedMax = Math.round(mainMax * 0.8);
+    this.sketch = new FrequencySketch(capacity);
+    this.hasher = options.hash ?? (defaultHash as (key: K) => number);
+    this.random = options.random ?? Math.random;
   }
 
   get size(): number {
@@ -65,9 +95,11 @@ export class Cache<K, V> {
   get(key: K): V | undefined {
     const node = this.map.get(key);
     if (node === undefined) {
+      this.sketch.increment(this.hasher(key)); // requests count even on a miss
       this._misses++;
       return undefined;
     }
+    this.sketch.increment(node.hash);
     this._hits++;
     this.onAccess(node);
     return node.value;
@@ -77,11 +109,15 @@ export class Cache<K, V> {
   set(key: K, value: V): void {
     const existing = this.map.get(key);
     if (existing !== undefined) {
+      this.sketch.increment(existing.hash);
       existing.value = value;
       this.onAccess(existing);
       return;
     }
+    const hash = this.hasher(key);
+    this.sketch.increment(hash);
     const node = new Node(key, value);
+    node.hash = hash;
     node.segment = WINDOW;
     this.map.set(key, node);
     this.window.pushHead(node);
@@ -109,6 +145,7 @@ export class Cache<K, V> {
     this.window.clear();
     this.probation.clear();
     this.protectedSeg.clear();
+    this.sketch.clear();
     this._hits = 0;
     this._misses = 0;
     this._evictions = 0;
@@ -173,7 +210,6 @@ export class Cache<K, V> {
     let victim = this.probation.tail;
     if (victim === null || victim === candidate) victim = this.protectedSeg.tail;
     if (victim === null || victim === candidate) {
-      // No distinct entry to weigh it against: the candidate cannot be held.
       this.unlink(candidate);
       this._evictions++;
       return;
@@ -185,13 +221,19 @@ export class Cache<K, V> {
   }
 
   /**
-   * Should `candidate` (aged out of the window) be admitted into the main region
-   * at the cost of `victim` (the coldest main entry)? For now, always yes. The
-   * next phase overrides this with a frequency comparison, so that a one-hit
-   * scan key cannot evict a proven-hot entry.
+   * The heart of W-TinyLFU. Admit `candidate` (aged out of the window) into the
+   * main region at the cost of `victim` (the coldest main entry) only if the
+   * sketch says the candidate is at least as frequently used. On a strict tie a
+   * coin flip decides, so an incumbent is not permanently unbeatable and an
+   * attacker cannot pin a key just under the victim. (Caffeine gates the random
+   * admission on a warmup threshold; this is the simpler form.)
    */
-  private shouldAdmit(_candidate: Node<K, V>, _victim: Node<K, V>): boolean {
-    return true;
+  private shouldAdmit(candidate: Node<K, V>, victim: Node<K, V>): boolean {
+    const candidateFreq = this.sketch.frequency(candidate.hash);
+    const victimFreq = this.sketch.frequency(victim.hash);
+    if (candidateFreq > victimFreq) return true;
+    if (candidateFreq === victimFreq) return this.random() < 0.5;
+    return false;
   }
 
   private unlink(node: Node<K, V>): void {
