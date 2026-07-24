@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Cache } from "../src/cache";
+import { WTinyLFU } from "../src/w-tinylfu";
 
 /** Deterministic PRNG so the workload tests never flake. */
 function mulberry32(seed: number): () => number {
@@ -60,7 +61,9 @@ describe("Cache (window + SLRU storage)", () => {
   });
 
   it("admits a frequently requested key over cold one-hit churn", () => {
-    const c = new Cache<number, number>(20, { random: () => 0.99 });
+    const c = new Cache<number, number>(20, {
+      policy: new WTinyLFU<number, number>({ random: () => 0.99 }),
+    });
     for (let i = 0; i < 100; i++) c.set(1000 + i, i); // prime with cold keys
     for (let round = 0; round < 60; round++) {
       if (c.get(7) === undefined) c.set(7, 7); // request key 7 every round
@@ -71,7 +74,9 @@ describe("Cache (window + SLRU storage)", () => {
   });
 
   it("achieves a high hit ratio on a skewed workload", () => {
-    const c = new Cache<number, number>(50, { random: () => 0.99 });
+    const c = new Cache<number, number>(50, {
+      policy: new WTinyLFU<number, number>({ random: () => 0.99 }),
+    });
     const rng = mulberry32(1);
     const hot = 40; // the hot set fits within capacity
     const coldTail = 5000;

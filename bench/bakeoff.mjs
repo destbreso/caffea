@@ -1,4 +1,5 @@
-// Hit-ratio bake-off: caffea (W-TinyLFU) vs a plain LRU vs a plain LFU.
+// Hit-ratio bake-off: W-TinyLFU vs LRU vs LFU, ALL three the library's own
+// eviction policies, driven through one Cache and swapped by a single line.
 //
 // This is the cache's real benchmark, the one the sketch bench could not run:
 // it drives all three policies through the SAME traces and reports hit ratio.
@@ -6,24 +7,21 @@
 // ratio on a workload, so that is what we measure here.
 //
 // Honesty notes:
-//   - The two baselines are textbook-correct, not strawmen. LRU is the Map
-//     insertion-order LRU; LFU is the canonical O(1) frequency-bucket LFU with an
-//     LRU tie-break inside each bucket.
-//   - LFU here is *in-cache* LFU (counts live only while a key is cached and are
-//     lost on eviction). That is the realistic kind: keeping counts for evicted
-//     keys needs unbounded memory, which is exactly the problem the frequency
-//     sketch solves. caffea's whole trick is approximating perfect-LFU frequency
-//     in a fixed-size sketch.
+//   - The baselines are not strawmen and not separate throwaway code: they are
+//     `new LRU()` and `new LFU()`, the same shipped policies you can install.
+//     LRU is the intrusive-list LRU; LFU is the canonical O(1) frequency-bucket
+//     LFU with an LRU tie-break, in-cache counts only (no aging) which is the
+//     realistic kind and the weakness W-TinyLFU's sketch is built to fix.
 //   - Every policy sees one recorded access per request: a `has`-gated driver
 //     does `get` on a hit and `set` on a miss, never both, so no key is
-//     double-counted. Hits are tallied by the driver, not read from any policy's
+//     double-counted. Hits are tallied by the driver, not read from any cache's
 //     internal stats, so the three are scored identically.
-//   - Everything is seeded (traces and caffea's admission coin-flip), so numbers
-//     are reproducible run to run.
+//   - Everything is seeded (traces and W-TinyLFU's admission coin-flip), so the
+//     numbers are reproducible run to run.
 //
 // Run with: npm run bench:cache  (builds first, then executes this file).
 
-import { Cache } from "../dist/index.js";
+import { Cache, WTinyLFU, LRU, LFU } from "../dist/index.js";
 
 /** Deterministic 32-bit PRNG so runs are reproducible. */
 function mulberry32(seed) {
@@ -38,93 +36,13 @@ function mulberry32(seed) {
 
 const fmt = (n) => n.toLocaleString("en-US");
 
-// --- Baselines -------------------------------------------------------------
-// Textbook LRU and LFU, in the bench only (never shipped). Same surface as the
-// caffea Cache the driver needs: has / get / set.
+// --- The three contenders: one Cache, three policies -----------------------
 
-/** Classic LRU: a Map whose insertion order is the recency order. */
-class LRU {
-  constructor(capacity) {
-    this.cap = capacity;
-    this.map = new Map();
-  }
-  has(k) {
-    return this.map.has(k);
-  }
-  get(k) {
-    if (!this.map.has(k)) return undefined;
-    const v = this.map.get(k);
-    this.map.delete(k);
-    this.map.set(k, v); // reinsert at the MRU end
-    return v;
-  }
-  set(k, v) {
-    if (this.map.has(k)) {
-      this.map.delete(k);
-    } else if (this.map.size >= this.cap) {
-      this.map.delete(this.map.keys().next().value); // evict the LRU (oldest)
-    }
-    this.map.set(k, v);
-  }
-}
-
-/**
- * Canonical O(1) LFU (Shah/Mitzenmacher-style frequency buckets). Each frequency
- * maps to an insertion-ordered Set of keys, so the first key in the minimum
- * bucket is the least-recently-used among the least-frequently-used: an LRU
- * tie-break, the standard strong LFU baseline. In-cache counts only, no aging.
- */
-class LFU {
-  constructor(capacity) {
-    this.cap = capacity;
-    this.val = new Map(); // key -> value
-    this.freq = new Map(); // key -> frequency
-    this.buckets = new Map(); // frequency -> Set<key> (insertion order = LRU)
-    this.minFreq = 0;
-  }
-  has(k) {
-    return this.val.has(k);
-  }
-  #bump(k) {
-    const f = this.freq.get(k);
-    const bucket = this.buckets.get(f);
-    bucket.delete(k);
-    if (bucket.size === 0) {
-      this.buckets.delete(f);
-      if (this.minFreq === f) this.minFreq++;
-    }
-    const nf = f + 1;
-    this.freq.set(k, nf);
-    if (!this.buckets.has(nf)) this.buckets.set(nf, new Set());
-    this.buckets.get(nf).add(k);
-  }
-  get(k) {
-    if (!this.val.has(k)) return undefined;
-    this.#bump(k);
-    return this.val.get(k);
-  }
-  set(k, v) {
-    if (this.cap <= 0) return;
-    if (this.val.has(k)) {
-      this.val.set(k, v);
-      this.#bump(k);
-      return;
-    }
-    if (this.val.size >= this.cap) {
-      const bucket = this.buckets.get(this.minFreq);
-      const victim = bucket.values().next().value; // LRU of the min-freq bucket
-      bucket.delete(victim);
-      if (bucket.size === 0) this.buckets.delete(this.minFreq);
-      this.val.delete(victim);
-      this.freq.delete(victim);
-    }
-    this.val.set(k, v);
-    this.freq.set(k, 1);
-    if (!this.buckets.has(1)) this.buckets.set(1, new Set());
-    this.buckets.get(1).add(k);
-    this.minFreq = 1;
-  }
-}
+const lru = (cap) => new Cache(cap, { policy: new LRU() });
+const lfu = (cap) => new Cache(cap, { policy: new LFU() });
+// A seeded coin per size so W-TinyLFU's tie-break is reproducible.
+const wtl = (cap) =>
+  new Cache(cap, { policy: new WTinyLFU({ random: mulberry32(0x9e3779b9 ^ cap) }) });
 
 // --- Driver ----------------------------------------------------------------
 
@@ -143,20 +61,16 @@ function hitRatio(cache, trace) {
   return hits / trace.length;
 }
 
-/** Build a caffea Cache with a seeded coin so ties are reproducible. */
-const caffea = (cap) => new Cache(cap, { random: mulberry32(0x9e3779b9 ^ cap) });
-
 function run(label, trace, cap) {
-  const lru = hitRatio(new LRU(cap), trace);
-  const lfu = hitRatio(new LFU(cap), trace);
-  const wtl = hitRatio(caffea(cap), trace);
+  const a = hitRatio(lru(cap), trace);
+  const b = hitRatio(lfu(cap), trace);
+  const c = hitRatio(wtl(cap), trace);
   const pct = (x) => (100 * x).toFixed(2) + "%";
   const pts = (x) => (x >= 0 ? "+" : "") + (100 * x).toFixed(2) + " pts";
   console.log(`\n== ${label} ==`);
-  console.log(`  LRU          ${pct(lru)}`);
-  console.log(`  LFU          ${pct(lfu)}`);
-  console.log(`  caffea       ${pct(wtl)}   (${pts(wtl - lru)} vs LRU, ${pts(wtl - lfu)} vs LFU)`);
-  return { lru, lfu, wtl };
+  console.log(`  LRU          ${pct(a)}`);
+  console.log(`  LFU          ${pct(b)}`);
+  console.log(`  caffea       ${pct(c)}   (${pts(c - a)} vs LRU, ${pts(c - b)} vs LFU)`);
 }
 
 // --- Trace generators ------------------------------------------------------
@@ -266,11 +180,11 @@ run(
 console.log("\n== Capacity sweep on the Zipfian trace (hit ratio) ==");
 console.log("  cap      LRU       LFU       caffea");
 for (const cap of [100, 250, 500, 1_000, 2_000]) {
-  const lru = hitRatio(new LRU(cap), zipf);
-  const lfu = hitRatio(new LFU(cap), zipf);
-  const wtl = hitRatio(caffea(cap), zipf);
+  const a = hitRatio(lru(cap), zipf);
+  const b = hitRatio(lfu(cap), zipf);
+  const c = hitRatio(wtl(cap), zipf);
   const p = (x) => (100 * x).toFixed(2) + "%";
   console.log(
-    `  ${String(cap).padStart(5)}   ${p(lru).padStart(7)}   ${p(lfu).padStart(7)}   ${p(wtl).padStart(7)}`,
+    `  ${String(cap).padStart(5)}   ${p(a).padStart(7)}   ${p(b).padStart(7)}   ${p(c).padStart(7)}`,
   );
 }

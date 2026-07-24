@@ -18,13 +18,13 @@ already owns the LRU default and does it well. The wedge here is the eviction
 with the policy swappable so you can run your own bake-off. This is my take on
 that gap, not the one true cache.
 
-> ### Status: early release (0.3.x)
-> The **`Cache`** is here, and it is real W-TinyLFU: an LRU admission window in
-> front of a Segmented LRU main region, with a frequency sketch gating admission
-> so a scan cannot evict your hot set, plus optional per-entry **TTL**. A
-> reproducible hit-ratio bake-off backs the claims. A pluggable eviction policy
-> and `memo` wrappers are next. The version is `0.x` on purpose: the API can
-> still move. See the [roadmap](#roadmap).
+> ### Status: early release (0.4.x)
+> The **`Cache`** is here with a real, scan-resistant **W-TinyLFU** by default,
+> optional per-entry **TTL**, and a **pluggable eviction policy** (`WTinyLFU`,
+> `LRU`, `LFU`, or your own) so you can run the bake-off on your own traffic. A
+> reproducible hit-ratio bake-off backs the claims. `memo` wrappers are next. The
+> version is `0.x` on purpose: the API can still move. See the
+> [roadmap](#roadmap).
 
 ## Install
 
@@ -65,12 +65,9 @@ cache.delete("user:42");
 cache.stats(); // { size, capacity, hits, misses, evictions, hitRatio }
 ```
 
-Keys can be any type. String and integer keys are hashed for you; for other key
-shapes pass your own `hash`:
-
-```ts
-new Cache<MyKey, V>(1000, { hash: (k) => k.id });
-```
+Keys can be any type. String and integer keys are hashed for you by the default
+policy; for other key shapes, pass a `hash` to `WTinyLFU` (see
+[Choosing a policy](#choosing-a-policy)).
 
 ### Expiry (TTL)
 
@@ -92,15 +89,44 @@ been seen at least as often as the entry it would replace. A key touched once (a
 scan, a crawler, a one-off report) cannot evict a proven-hot entry, which is
 exactly where a plain LRU bleeds hit ratio.
 
+## Choosing a policy
+
+The cache delegates every eviction decision to a policy. The default is
+`WTinyLFU`; swap it with one line, or bring your own.
+
+```ts
+import { Cache, WTinyLFU, LRU, LFU } from "caffea";
+
+new Cache(cap); //                       W-TinyLFU (the default)
+new Cache(cap, { policy: new LRU() }); // plain LRU
+new Cache(cap, { policy: new LFU() }); // plain LFU (in-cache counts, no aging)
+```
+
+- **`WTinyLFU`** (default) is the scan-resistant, skew-friendly policy the rest
+  of this README is about. It takes its own tuning via
+  `new WTinyLFU({ hash, random })`: `hash` maps a key to a 32-bit integer for the
+  frequency sketch (strings and integers are handled for you), and `random` is
+  the admission tie-break source (inject a seeded one for deterministic tests).
+- **`LRU`** and **`LFU`** are honest, textbook baselines, offered so you can
+  measure the gap on *your own* traffic instead of taking the bake-off's word for
+  it. Install each behind the same `Cache` and compare `stats().hitRatio`.
+
+Write your own by implementing `EvictionPolicy<K, V>`: `init(capacity)`,
+`onAdd(node)` (returns a victim to evict or `null`), `onAccess(node)`,
+`onMiss(key)`, `onRemove(node)`, and `clear()`. The `Node` and `EvictionPolicy`
+types are exported for this. TTL is orthogonal and works behind any policy.
+
 ## Cache API
 
 ### `new Cache<K, V>(capacity, options?)`
-A W-TinyLFU cache holding up to `capacity` entries. Options: `hash?: (key: K) =>
-number` overrides the default key hasher; `random?: () => number` overrides the
-admission tie-break source; `ttl?: number` sets a default per-entry lifetime in
-milliseconds (omit for no expiry); `clock?: () => number` overrides the time
-source (defaults to `Date.now`, injectable for deterministic tests). Throws
-`RangeError` if `capacity` is not a positive integer or `ttl` is not positive.
+A cache holding up to `capacity` entries. Options: `policy?: EvictionPolicy`
+selects the eviction strategy (default `new WTinyLFU()`; see
+[Choosing a policy](#choosing-a-policy)); `ttl?: number` sets a default per-entry
+lifetime in milliseconds (omit for no expiry); `clock?: () => number` overrides
+the time source (defaults to `Date.now`, injectable for deterministic tests).
+Throws `RangeError` if `capacity` is not a positive integer or `ttl` is not
+positive. (Key hashing and the admission RNG are configured on `WTinyLFU`, not
+here.)
 
 ### `cache.get(key)` / `cache.set(key, value, ttl?)`
 Read (recording a use, which can promote the entry) and insert-or-update. A
@@ -215,9 +241,10 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 - [x] Admission gate: candidate-vs-victim frequency + randomized tie-break
 - [x] `Cache`: `get / set / has / delete / peek / clear`, `.stats()`
 - [x] TTL (cache-wide default + per-call override, injectable clock)
-- [ ] Pluggable `EvictionPolicy` interface (LRU / LFU / W-TinyLFU)
-- [ ] `memo` / `adaptiveMemo`
 - [x] Hit-ratio bake-off (seeded Zipfian / scan / shifting traces vs LRU / LFU)
+- [x] Pluggable `EvictionPolicy` interface (`WTinyLFU` / `LRU` / `LFU` / your own)
+- [ ] `memo` / `adaptiveMemo`
+- [ ] Optional string-name policy selector (`{ policy: 'lru' }`) over the interface
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),
 adaptive window resizing, and any distributed or multi-backend store (that is

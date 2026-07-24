@@ -1,18 +1,25 @@
 /**
- * An intrusive doubly-linked list, the backbone of each cache segment (window,
- * probation, protected). "Intrusive" means the list does not own wrapper cells:
- * the nodes ARE the cache entries and carry their own `prev`/`next`, so an entry
- * can be unlinked from one segment and linked into another in O(1) with no
- * allocation. `head` is the most-recently-used end, `tail` the least.
+ * A cache entry, and the unit an eviction policy organizes. It carries its own
+ * `prev`/`next` so it can live in an intrusive doubly-linked list (see below):
+ * the node IS the list cell, so a policy can unlink it from one list and link it
+ * into another in O(1) with no allocation.
+ *
+ * `key`, `value`, and `expiresAt` belong to the cache (identity, payload, TTL).
+ * `segment`, `hash`, and `freq` are scratch space the installed eviction policy
+ * uses however it likes; a policy that does not need a field simply ignores it
+ * (an LRU never touches `hash` or `freq`, an LFU never touches `segment`). This
+ * keeps every policy allocation-free at the cost of a few unused number fields
+ * per entry, which for a cache is a rounding error.
  */
-
 export class Node<K, V> {
   prev: Node<K, V> | null = null;
   next: Node<K, V> | null = null;
-  /** Which segment currently holds this node (segment tags live in cache.ts). */
+  /** Policy scratch: a segment/state tag (W-TinyLFU uses window/probation/protected). */
   segment = 0;
-  /** 32-bit hash of the key, computed once, used by the frequency sketch. */
+  /** Policy scratch: a 32-bit hash of the key (W-TinyLFU's frequency sketch). */
   hash = 0;
+  /** Policy scratch: an access-frequency counter (LFU's bucket level). */
+  freq = 0;
   /** Absolute expiry in clock-ms; `Infinity` means the entry never expires. */
   expiresAt = Infinity;
   constructor(

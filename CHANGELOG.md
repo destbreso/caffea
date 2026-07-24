@@ -8,8 +8,34 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Next
 
-- A pluggable eviction policy (LRU / LFU / W-TinyLFU behind one interface) and
-  `memo` / `adaptiveMemo` wrappers for the "cache this function" case.
+- `memo` / `adaptiveMemo` wrappers for the "cache this function" case, and an
+  optional string-name policy selector (`{ policy: 'lru' }`) as a thin layer over
+  the interface.
+
+## [0.4.0]
+
+### Changed (breaking, pre-1.0)
+
+- The eviction policy is now pluggable. `new Cache(cap, { policy })` selects it
+  and defaults to `new WTinyLFU()`, so `new Cache(cap)` behaves exactly as before.
+  The `hash` and `random` options moved off the `Cache` onto `WTinyLFU`
+  (`new WTinyLFU({ hash, random })`), since they only ever configured the
+  W-TinyLFU sketch and admission coin.
+- TTL and the eviction policy are now cleanly orthogonal: TTL correctness stays
+  eager (checked on every read, whatever policy is installed), but the internal
+  "an expired entry is the free eviction victim" shortcut from 0.3.0 is gone,
+  because the policy no longer knows about time. Expiry is still lazy on reads.
+
+### Added
+
+- `EvictionPolicy<K, V>` interface and three built-in policies: `WTinyLFU`
+  (the default), `LRU`, and `LFU`. Install one with `{ policy: new LRU() }`, or
+  implement the interface to plug in your own. Built on the shared intrusive
+  list, so every built-in is allocation-free. Exported the `Node`,
+  `EvictionPolicy`, and `WTinyLFUOptions` types.
+- The hit-ratio bake-off now drives the shipped policies (swapped by one line)
+  instead of separate reference implementations; the numbers are byte-identical,
+  which is a nice check that the built-ins match the textbook algorithms.
 
 ## [0.3.0]
 
