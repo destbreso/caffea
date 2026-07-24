@@ -10,6 +10,11 @@ export { LRU, LFU } from "./policy";
 export { WTinyLFU } from "./w-tinylfu";
 export type { WTinyLFUOptions } from "./w-tinylfu";
 
+// The name registry behind string policy selection (`{ policy: "lru" }`), and
+// how you make your own policy selectable by name.
+export { registerPolicy, policyNames } from "./registry";
+export type { PolicyFactory } from "./registry";
+
 // The cache entry a custom policy receives and organizes.
 export type { Node } from "./list";
 

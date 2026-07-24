@@ -1,6 +1,7 @@
 import { Node } from "./list";
 import type { EvictionPolicy } from "./policy";
 import { WTinyLFU } from "./w-tinylfu";
+import { createPolicy } from "./registry";
 
 /** Snapshot of runtime counters, returned by `cache.stats()`. */
 export interface CacheStats {
@@ -14,12 +15,13 @@ export interface CacheStats {
 
 export interface CacheOptions<K, V> {
   /**
-   * The eviction policy. Defaults to `new WTinyLFU()`. Pass `new LRU()`,
-   * `new LFU()`, a configured `new WTinyLFU({ hash, random })`, or your own
-   * `EvictionPolicy` implementation. Key-specific tuning that used to live here
-   * (the sketch hash, the admission RNG) now lives on `WTinyLFU`.
+   * The eviction policy. Defaults to `new WTinyLFU()`. Pass a policy instance
+   * (`new LRU()`, `new WTinyLFU({ hash, random })`, or your own `EvictionPolicy`),
+   * or a registered name (`"w-tinylfu"`, `"lru"`, `"lfu"`, or any name you added
+   * with `registerPolicy`). Key-specific tuning (the sketch hash, the admission
+   * RNG) lives on `WTinyLFU`.
    */
-  policy?: EvictionPolicy<K, V>;
+  policy?: EvictionPolicy<K, V> | string;
   /**
    * Default time-to-live in milliseconds, applied to every entry (expire after
    * write). Omit for entries that never expire by default; a per-call `ttl` on
@@ -72,7 +74,11 @@ export class Cache<K, V> {
       );
     }
     this.capacity = capacity;
-    this.policy = options.policy ?? new WTinyLFU<K, V>();
+    const requested = options.policy;
+    this.policy =
+      typeof requested === "string"
+        ? createPolicy<K, V>(requested)
+        : (requested ?? new WTinyLFU<K, V>());
     this.policy.init(capacity);
     this.clock = options.clock ?? Date.now;
     this.defaultTtl =

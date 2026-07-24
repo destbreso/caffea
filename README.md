@@ -116,6 +116,27 @@ Write your own by implementing `EvictionPolicy<K, V>`: `init(capacity)`,
 `onMiss(key)`, `onRemove(node)`, and `clear()`. The `Node` and `EvictionPolicy`
 types are exported for this. TTL is orthogonal and works behind any policy.
 
+### Selecting a policy by name
+
+A policy can also be chosen by a registered name, and you can register your own so
+it is selectable exactly like a built-in:
+
+```ts
+import { Cache, registerPolicy, policyNames } from "caffea";
+
+new Cache(cap, { policy: "lru" }); // built-in names: "w-tinylfu", "lru", "lfu"
+
+registerPolicy("my-policy", () => new MyPolicy());
+new Cache(cap, { policy: "my-policy" }); // your policy, selected by name
+
+policyNames(); // => ["w-tinylfu", "lru", "lfu", "my-policy"]
+```
+
+The registry stores factories, so each cache gets a fresh instance, and an
+unknown name throws. Instance and string forms coexist: pass an instance when you
+need to configure it (`new WTinyLFU({ hash })`) or want full type checking, a name
+when the default of a policy is all you want.
+
 ## Memoizing a function
 
 `memo` wraps a function so its results are cached, with the whole W-TinyLFU (and
@@ -273,7 +294,7 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 - [x] Hit-ratio bake-off (seeded Zipfian / scan / shifting traces vs LRU / LFU)
 - [x] Pluggable `EvictionPolicy` interface (`WTinyLFU` / `LRU` / `LFU` / your own)
 - [x] `memo` (sync/async, in-flight de-duplication, a rejected result not cached)
-- [ ] Optional string-name policy selector (`{ policy: 'lru' }`) over the interface
+- [x] Extensible string-name policy selector (`{ policy: 'lru' }`, `registerPolicy`)
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),
 adaptive window resizing, and any distributed or multi-backend store (that is

@@ -8,8 +8,23 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Next
 
-- An optional string-name policy selector (`{ policy: 'lru' }`) as a thin layer
-  over the interface, and possibly stale-while-revalidate memoization.
+- Possibly stale-while-revalidate memoization. The core is feature-complete; the
+  next bump is likely the stabilization to 1.0.
+
+## [0.6.0]
+
+### Added
+
+- String policy selection backed by an **extensible** registry.
+  `new Cache(cap, { policy: "lru" })` selects a policy by name, and
+  `registerPolicy(name, factory)` makes your OWN policy selectable the same way,
+  so the selector adapts to custom policies instead of knowing only the built-ins
+  (a selector that did not do this would quietly undo the whole point of the
+  pluggable interface). Built-ins `"w-tinylfu"`, `"lru"`, and `"lfu"` are
+  pre-registered; `policyNames()` lists what is available; an unknown name throws
+  a `RangeError` that lists the known names. The registry stores factories, so
+  every cache gets a fresh policy instance. Exported `registerPolicy`,
+  `policyNames`, and the `PolicyFactory` type.
 
 ## [0.5.0]
 
