@@ -1,0 +1,71 @@
+{
+  "name": "caffea",
+  "version": "0.1.0",
+  "description": "A modern, zero-dependency cache for JavaScript/TypeScript with a pluggable eviction policy: W-TinyLFU admission (Count-Min Sketch + SLRU) that beats plain LRU on skewed workloads. TypeScript-first.",
+  "author": {
+    "name": "David Estevez",
+    "email": "dev.destbreso@gmail.com"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "npm run build && node bench/sketch.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cache",
+    "caching",
+    "lru",
+    "lfu",
+    "tinylfu",
+    "w-tinylfu",
+    "cache-eviction",
+    "eviction-policy",
+    "count-min-sketch",
+    "admission-control",
+    "hit-ratio",
+    "frequency-sketch",
+    "memoize",
+    "ttl",
+    "zero-dependencies",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/destbreso/caffea.git"
+  },
+  "homepage": "https://github.com/destbreso/caffea#readme",
+  "bugs": {
+    "url": "https://github.com/destbreso/caffea/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  }
+}
