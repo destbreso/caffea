@@ -41,7 +41,7 @@ function isThenable(x: unknown): x is Promise<unknown> {
 }
 
 /**
- * Memoize a function, caching results in a caffea `Cache` (W-TinyLFU + optional
+ * Memoize a function, caching results in a koffein `Cache` (W-TinyLFU + optional
  * TTL by default). Works for sync and async functions.
  *
  * For async functions it caches the *promise*, so concurrent calls for the same

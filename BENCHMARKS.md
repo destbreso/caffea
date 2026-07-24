@@ -1,6 +1,6 @@
-# caffea benchmark report
+# koffein benchmark report
 
-> Generated 2026-07-24T18:33:30.886Z · Node v22.14.0
+> Generated 2026-07-24T18:56:00.205Z · Node v22.14.0
 
 ## Method
 
@@ -16,7 +16,7 @@ two-generation cache (quick-lru, hashlru) holds up to twice its stated size, so
 it is sized to half the budget; every cache in a row occupies the same number of
 entries at its peak.
 
-Measured with cache-arena (github.com/destbreso/cache-arena). caffea's default policy is W-TinyLFU; `transitory` is the other npm W-TinyLFU, included for a same-family comparison. Workloads are fixed-seed and the reference policies and caffea are seeded, so their rows reproduce exactly; transitory has its own unseeded admission coin and may vary by a fraction of a point between runs.
+Measured with cache-arena (github.com/destbreso/cache-arena). koffein's default policy is W-TinyLFU; `transitory` is the other npm W-TinyLFU, included for a same-family comparison. Workloads are fixed-seed and the reference policies and koffein are seeded, so their rows reproduce exactly; transitory has its own unseeded admission coin and may vary by a fraction of a point between runs.
 
 ## Efficiency (hit ratio vs cache size)
 
@@ -31,7 +31,7 @@ Footprint 19,760 distinct keys over 200,000 requests. Columns are cache size as 
 | Cache | policy | 0.10% | 0.50% | 1% | 5% | 10% | 25% |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **OPT** | _optimal_ | **12.3%** | **23.2%** | **29.5%** | **48.9%** | **59.4%** | **74.4%** |
-| caffea | W-TinyLFU | 7.0% | 14.4% | 18.7% | 33.1% | 41.8% | 57.5% |
+| koffein | W-TinyLFU | 7.0% | 14.4% | 18.7% | 33.1% | 41.8% | 57.5% |
 | transitory | W-TinyLFU | 7.4% | 14.4% | 18.3% | 32.4% | 41.1% | 57.3% |
 | LFU | LFU | 7.5% | 13.3% | 17.3% | 32.0% | 40.9% | 56.9% |
 | SIEVE | SIEVE | 7.2% | 14.3% | 18.1% | 32.2% | 41.0% | 56.9% |
@@ -58,7 +58,7 @@ Footprint 18,500 distinct keys over 200,000 requests. Columns are cache size as 
 | Cache | policy | 0.10% | 0.50% | 1% | 5% | 10% | 25% |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **OPT** | _optimal_ | **26.9%** | **41.7%** | **48.6%** | **66.0%** | **73.8%** | **83.5%** |
-| caffea | W-TinyLFU | 20.0% | 33.3% | 39.3% | 55.4% | 62.9% | 74.1% |
+| koffein | W-TinyLFU | 20.0% | 33.3% | 39.3% | 55.4% | 62.9% | 74.1% |
 | LFU | LFU | 20.3% | 33.6% | 39.4% | 54.9% | 62.5% | 74.0% |
 | SIEVE | SIEVE | 20.7% | 34.0% | 40.1% | 55.0% | 62.5% | 74.0% |
 | S3-FIFO | S3-FIFO | 21.9% | 34.1% | 40.1% | 55.8% | 63.2% | 73.8% |
@@ -85,7 +85,7 @@ Footprint 17,049 distinct keys over 200,000 requests. Columns are cache size as 
 | Cache | policy | 0.10% | 0.50% | 1% | 5% | 10% | 25% |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **OPT** | _optimal_ | **35.2%** | **51.4%** | **58.3%** | **73.7%** | **79.9%** | **87.1%** |
-| caffea | W-TinyLFU | 28.1% | 43.4% | 49.8% | 65.6% | 71.7% | 80.5% |
+| koffein | W-TinyLFU | 28.1% | 43.4% | 49.8% | 65.6% | 71.7% | 80.5% |
 | LFU | LFU | 28.3% | 43.4% | 50.4% | 65.2% | 71.6% | 80.3% |
 | SIEVE | SIEVE | 28.6% | 44.4% | 50.9% | 65.4% | 71.7% | 80.3% |
 | transitory | W-TinyLFU | 29.0% | 43.0% | 50.0% | 64.7% | 71.3% | 80.2% |
@@ -115,7 +115,7 @@ Footprint 11,166 distinct keys over 200,000 requests. Columns are cache size as 
 | LFU | LFU | 46.5% | 66.1% | 72.9% | 83.5% | 87.1% | 90.9% |
 | SIEVE | SIEVE | 47.4% | 66.9% | 73.2% | 83.6% | 87.1% | 90.9% |
 | S3-FIFO | S3-FIFO | 49.3% | 66.6% | 72.6% | 83.5% | 87.1% | 90.9% |
-| caffea | W-TinyLFU | 46.4% | 66.0% | 72.3% | 83.5% | 87.1% | 90.7% |
+| koffein | W-TinyLFU | 46.4% | 66.0% | 72.3% | 83.5% | 87.1% | 90.7% |
 | transitory | W-TinyLFU | 49.3% | 66.2% | 71.8% | 83.3% | 86.9% | 90.6% |
 | LRU | LRU | 34.7% | 57.1% | 64.9% | 79.3% | 84.2% | 89.7% |
 | lru-cache | LRU | 34.7% | 57.1% | 64.9% | 79.3% | 84.2% | 89.7% |
@@ -141,7 +141,7 @@ Footprint 19,904 distinct keys over 210,000 requests. Columns are cache size as 
 | **OPT** | _optimal_ | **28.9%** | **44.8%** | **52.2%** | **70.5%** | **78.4%** | **87.4%** |
 | LFU | LFU | 20.7% | 35.9% | 42.7% | 59.7% | 68.2% | 80.7% |
 | SIEVE | SIEVE | 22.2% | 36.9% | 43.5% | 59.9% | 68.2% | 80.7% |
-| caffea | W-TinyLFU | 21.6% | 36.1% | 42.7% | 59.9% | 68.5% | 80.6% |
+| koffein | W-TinyLFU | 21.6% | 36.1% | 42.7% | 59.9% | 68.5% | 80.6% |
 | transitory | W-TinyLFU | 22.1% | 35.6% | 40.4% | 59.1% | 67.4% | 80.3% |
 | S3-FIFO | S3-FIFO | 23.2% | 36.7% | 43.2% | 60.1% | 68.3% | 80.2% |
 | LRU | LRU | 10.4% | 24.3% | 31.4% | 51.6% | 61.9% | 76.9% |
@@ -166,7 +166,7 @@ Footprint 1,500 distinct keys over 200,000 requests. Columns are cache size as a
 | Cache | policy | 0.10% | 0.50% | 1% | 5% | 10% | 25% |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **OPT** | _optimal_ | **0.6%** | **0.6%** | **0.9%** | **4.9%** | **9.9%** | **24.9%** |
-| caffea | W-TinyLFU | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 20.8% |
+| koffein | W-TinyLFU | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 20.8% |
 | transitory | W-TinyLFU | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 13.0% |
 | Random | Random | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 2.0% |
 | FIFO | FIFO | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
@@ -205,7 +205,7 @@ Footprint 18,804 distinct keys over 200,000 requests. Columns are cache size as 
 | quick-lru | LRU (2-generation) | 10.5% | 25.8% | 34.2% | 57.2% | 68.8% | 84.3% |
 | hashlru | LRU (2-generation, approx) | 10.5% | 25.8% | 34.2% | 57.2% | 68.8% | 84.3% |
 | SIEVE | SIEVE | 25.4% | 41.5% | 48.2% | 65.4% | 66.5% | 78.4% |
-| caffea | W-TinyLFU | 24.6% | 40.6% | 48.1% | 64.0% | 69.3% | 76.0% |
+| koffein | W-TinyLFU | 24.6% | 40.6% | 48.1% | 64.0% | 69.3% | 76.0% |
 | transitory | W-TinyLFU | 25.6% | 40.2% | 48.1% | 62.3% | 69.6% | 75.7% |
 | LFU | LFU | 7.1% | 11.2% | 14.2% | 29.6% | 42.9% | 53.5% |
 
@@ -228,7 +228,7 @@ Footprint 27,805 distinct keys over 200,000 requests. Columns are cache size as 
 | tiny-lru | LRU | 3.6% | 17.4% | 33.8% | 80.2% | 80.9% | 82.3% |
 | mnemonist | LRU | 3.6% | 17.4% | 33.8% | 80.2% | 80.9% | 82.3% |
 | lru.min | LRU | 3.6% | 17.4% | 33.8% | 80.2% | 80.9% | 82.3% |
-| caffea | W-TinyLFU | 4.3% | 21.7% | 43.9% | 80.3% | 80.8% | 82.3% |
+| koffein | W-TinyLFU | 4.3% | 21.7% | 43.9% | 80.3% | 80.8% | 82.3% |
 | S3-FIFO | S3-FIFO | 4.5% | 21.7% | 42.4% | 80.3% | 80.8% | 82.3% |
 | CLOCK | CLOCK | 3.6% | 17.2% | 32.9% | 79.5% | 80.7% | 82.2% |
 | quick-lru | LRU (2-generation) | 2.6% | 12.9% | 24.5% | 76.0% | 80.5% | 81.6% |
@@ -240,21 +240,21 @@ Footprint 27,805 distinct keys over 200,000 requests. Columns are cache size as 
 
 | Cache | zipf-0.7 | zipf-0.9 | zipf-0.99 | zipf-1.2 | scan | loop | shift | two-pool |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| SIEVE | 20.6 ± 0.3 | 25.0 ± 0.4 | 28.4 ± 0.3 | 36.2 ± 0.3 | 25.8 ± 0.1 | 18.1 ± 0.3 | 26.2 ± 0.4 | 27.9 ± 0.5 |
-| CLOCK | 14.5 ± 0.2 | 18.5 ± 0.3 | 21.4 ± 0.2 | 30.1 ± 0.2 | 18.8 ± 0.3 | 16.6 ± 0.3 | 23.9 ± 0.4 | 25.2 ± 0.8 |
-| tiny-lru | 15.6 ± 2.1 | 21.5 ± 0.6 | 24.7 ± 0.3 | 19.1 ± 0.1 | 10.9 ± 0.1 | 15.6 ± 0.6 | 28.4 ± 0.4 | 17.4 ± 0.6 |
-| quick-lru | 15.7 ± 0.1 | 17.6 ± 0.0 | 18.8 ± 0.1 | 24.0 ± 0.2 | 17.7 ± 0.1 | 14.5 ± 0.2 | 19.4 ± 0.1 | 22.8 ± 0.2 |
-| mnemonist | 13.7 ± 0.1 | 16.6 ± 0.1 | 18.6 ± 0.2 | 24.4 ± 0.1 | 16.8 ± 0.2 | 13.6 ± 0.1 | 20.2 ± 0.2 | 20.6 ± 0.4 |
-| Random | 11.6 ± 0.1 | 14.8 ± 0.2 | 17.7 ± 0.2 | 30.2 ± 0.3 | 15.6 ± 0.2 | 10.9 ± 0.3 | 20.6 ± 0.3 | 22.7 ± 0.6 |
-| lru.min | 9.6 ± 1.2 | 14.8 ± 0.1 | 16.7 ± 0.1 | 22.4 ± 0.2 | 15.3 ± 0.2 | 12.3 ± 0.1 | 18.1 ± 0.2 | 18.6 ± 0.4 |
-| lru-cache | 10.0 ± 0.2 | 12.7 ± 0.1 | 14.2 ± 0.1 | 17.7 ± 0.1 | 13.0 ± 0.1 | 10.3 ± 0.1 | 15.4 ± 0.1 | 15.5 ± 0.2 |
-| hashlru | 7.9 ± 0.2 | 9.8 ± 0.2 | 11.6 ± 0.1 | 19.1 ± 0.1 | 10.8 ± 0.0 | 14.9 ± 0.1 | 10.5 ± 0.1 | 16.0 ± 0.3 |
-| caffea | 8.9 ± 0.1 | 9.8 ± 0.1 | 11.1 ± 0.1 | 14.6 ± 0.1 | 10.2 ± 0.1 | 6.7 ± 0.1 | 10.5 ± 0.1 | 12.1 ± 0.2 |
-| transitory | 6.3 ± 0.1 | 7.8 ± 0.0 | 8.9 ± 0.2 | 12.3 ± 0.1 | 8.0 ± 0.3 | 4.9 ± 0.0 | 8.7 ± 0.0 | 9.6 ± 0.1 |
-| LRU | 3.7 ± 0.2 | 5.7 ± 0.1 | 6.2 ± 0.1 | 3.5 ± 0.1 | 6.7 ± 0.0 | 7.1 ± 0.1 | 8.5 ± 0.1 | 9.3 ± 0.1 |
-| FIFO | 3.0 ± 0.0 | 3.9 ± 0.1 | 4.8 ± 0.0 | 7.9 ± 0.1 | 4.7 ± 0.1 | 7.3 ± 0.1 | 6.6 ± 0.1 | 4.1 ± 0.0 |
-| LFU | 3.3 ± 0.0 | 5.4 ± 0.1 | 5.8 ± 0.1 | 6.9 ± 0.1 | 5.4 ± 0.0 | 6.0 ± 0.0 | 2.0 ± 0.1 | 4.4 ± 0.1 |
-| S3-FIFO | 2.2 ± 0.0 | 3.1 ± 0.2 | 3.9 ± 0.0 | 11.3 ± 0.0 | 3.5 ± 0.1 | 3.3 ± 0.3 | 4.5 ± 0.0 | 3.3 ± 0.0 |
+| SIEVE | 20.8 ± 0.2 | 25.4 ± 0.2 | 26.0 ± 0.8 | 36.4 ± 0.4 | 26.8 ± 0.3 | 18.5 ± 0.3 | 25.8 ± 0.4 | 27.8 ± 0.3 |
+| CLOCK | 15.2 ± 0.1 | 18.7 ± 0.2 | 19.8 ± 0.4 | 30.2 ± 0.3 | 19.4 ± 0.4 | 17.4 ± 0.2 | 23.9 ± 0.2 | 26.0 ± 0.3 |
+| tiny-lru | 18.6 ± 0.3 | 20.9 ± 1.2 | 24.3 ± 0.4 | 18.7 ± 0.4 | 10.8 ± 0.1 | 16.6 ± 0.0 | 28.6 ± 0.6 | 17.2 ± 0.5 |
+| quick-lru | 15.4 ± 0.2 | 17.5 ± 0.1 | 18.5 ± 0.2 | 23.4 ± 0.4 | 16.3 ± 0.5 | 15.1 ± 0.0 | 19.1 ± 0.1 | 22.5 ± 0.2 |
+| Random | 11.3 ± 0.1 | 15.2 ± 0.1 | 17.7 ± 0.5 | 30.0 ± 0.4 | 15.8 ± 0.3 | 11.7 ± 0.1 | 19.8 ± 1.1 | 22.8 ± 0.4 |
+| mnemonist | 13.6 ± 0.1 | 16.4 ± 0.1 | 18.3 ± 0.2 | 23.8 ± 0.2 | 16.8 ± 0.1 | 13.8 ± 0.1 | 20.3 ± 0.1 | 20.1 ± 0.4 |
+| lru.min | 12.4 ± 0.1 | 14.8 ± 0.2 | 16.5 ± 0.2 | 21.8 ± 0.3 | 15.1 ± 0.2 | 12.0 ± 0.4 | 18.2 ± 0.2 | 18.3 ± 0.2 |
+| lru-cache | 11.0 ± 0.1 | 12.5 ± 0.2 | 14.2 ± 0.1 | 18.1 ± 0.1 | 13.2 ± 0.1 | 10.6 ± 0.3 | 14.4 ± 1.3 | 15.6 ± 0.1 |
+| hashlru | 8.4 ± 0.0 | 10.1 ± 0.1 | 11.9 ± 0.1 | 19.0 ± 0.2 | 10.7 ± 0.1 | 15.1 ± 0.1 | 10.4 ± 0.1 | 16.2 ± 0.1 |
+| koffein | 9.0 ± 0.1 | 9.9 ± 0.0 | 7.9 ± 0.6 | 14.2 ± 0.1 | 10.0 ± 0.1 | 6.7 ± 0.3 | 10.4 ± 0.1 | 12.0 ± 0.2 |
+| transitory | 6.4 ± 0.1 | 7.8 ± 0.1 | 9.0 ± 0.1 | 12.4 ± 0.1 | 8.3 ± 0.0 | 4.7 ± 0.2 | 8.6 ± 0.1 | 9.5 ± 0.5 |
+| LRU | 3.8 ± 0.0 | 5.7 ± 0.0 | 6.1 ± 0.1 | 3.6 ± 0.0 | 6.7 ± 0.0 | 6.9 ± 0.7 | 4.8 ± 1.8 | 8.8 ± 0.3 |
+| FIFO | 3.0 ± 0.0 | 4.0 ± 0.0 | 4.8 ± 0.0 | 8.0 ± 0.0 | 4.8 ± 0.0 | 7.3 ± 0.1 | 7.0 ± 0.1 | 3.9 ± 0.4 |
+| LFU | 3.3 ± 0.0 | 5.4 ± 0.0 | 5.7 ± 0.1 | 6.7 ± 0.1 | 5.2 ± 0.2 | 6.0 ± 0.0 | 1.8 ± 0.1 | 4.4 ± 0.1 |
+| S3-FIFO | 2.2 ± 0.0 | 3.2 ± 0.0 | 4.0 ± 0.0 | 11.4 ± 0.0 | 3.7 ± 0.0 | 3.6 ± 0.0 | 4.4 ± 0.1 | 3.2 ± 0.1 |
 
 ![Throughput for zipf-0.7](charts/throughput-zipf-0-7.svg)
 

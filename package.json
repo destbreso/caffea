@@ -1,5 +1,5 @@
 {
-  "name": "caffea",
+  "name": "koffein",
   "version": "0.6.0",
   "description": "A modern, zero-dependency cache for JavaScript/TypeScript with a pluggable eviction policy: W-TinyLFU admission (Count-Min Sketch + SLRU) that beats plain LRU on skewed workloads. TypeScript-first.",
   "author": {
@@ -58,11 +58,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/destbreso/caffea.git"
+    "url": "git+https://github.com/destbreso/koffein.git"
   },
-  "homepage": "https://github.com/destbreso/caffea#readme",
+  "homepage": "https://github.com/destbreso/koffein#readme",
   "bugs": {
-    "url": "https://github.com/destbreso/caffea/issues"
+    "url": "https://github.com/destbreso/koffein/issues"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

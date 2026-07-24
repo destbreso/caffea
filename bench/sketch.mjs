@@ -110,6 +110,6 @@ function accuracy() {
   console.log(`  underestimates           ${under}   (Count-Min guarantees 0)`);
 }
 
-console.log("caffea :: frequency sketch benchmark");
+console.log("koffein :: frequency sketch benchmark");
 throughput();
 accuracy();

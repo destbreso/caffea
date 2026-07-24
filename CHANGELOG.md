@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed the package from `caffea` to `koffein`.** Same cache, same API; only
+  the name changed (`npm install koffein`, `import { Cache } from "koffein"`). The
+  old `caffea` package on npm is deprecated and points here.
+
 ### Next
 
 - Possibly stale-while-revalidate memoization. The core is feature-complete; the
@@ -96,11 +102,11 @@ to [Semantic Versioning](https://semver.org/).
   list for O(1) moves between segments. Covered by tests (bounded size under
   load, scan resistance, a frequently requested key winning admission, and a high
   hit ratio on a skewed workload).
-- Hit-ratio bake-off (`bench/bakeoff.mjs`, `npm run bench:cache`): drives caffea,
+- Hit-ratio bake-off (`bench/bakeoff.mjs`, `npm run bench:cache`): drives koffein,
   a textbook LRU, and a textbook in-cache LFU through identical seeded traces
   (Zipfian skew, scan pollution, and a shifting working set) and reports hit
   ratio, scoring all three with one `has`-gated driver so no key is double
-  counted. caffea is the only policy that is never the worst: it beats LRU by
+  counted. koffein is the only policy that is never the worst: it beats LRU by
   ~9-10 points on skew and scan, and it beats a no-aging LFU by ~32 points on the
   shifting workload (where LFU gets stuck on stale keys).
 

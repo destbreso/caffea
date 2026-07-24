@@ -1,7 +1,7 @@
-# caffea
+# koffein
 
-[![npm](https://img.shields.io/npm/v/caffea.svg)](https://www.npmjs.com/package/caffea)
-[![license](https://img.shields.io/npm/l/caffea.svg)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/koffein.svg)](https://www.npmjs.com/package/koffein)
+[![license](https://img.shields.io/npm/l/koffein.svg)](./LICENSE)
 [![types](https://img.shields.io/badge/types-TypeScript-blue.svg)](./src)
 ![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)
 
@@ -29,7 +29,7 @@ that gap, not the one true cache.
 ## Install
 
 ```sh
-npm install caffea
+npm install koffein
 ```
 
 Ships ESM and CommonJS builds with type declarations. Node >= 18. Zero runtime
@@ -50,7 +50,7 @@ dependencies.
 
 ## Benchmarks
 
-caffea is measured against plain LRU, the popular npm caches, and the modern
+koffein is measured against plain LRU, the popular npm caches, and the modern
 research policies (SIEVE, S3-FIFO, LFU) with an independent harness,
 [cache-arena](https://github.com/destbreso/cache-arena), on the same seeded
 workloads and through the same uniform driver. Caches are compared at equal
@@ -58,30 +58,30 @@ workloads and through the same uniform driver. Caches are compared at equal
 down to match). Full tables, every workload, and the methodology live in
 [BENCHMARKS.md](./BENCHMARKS.md); the short version:
 
-**Hit ratio (efficiency).** On skewed (Zipfian) traffic, the common case, caffea
+**Hit ratio (efficiency).** On skewed (Zipfian) traffic, the common case, koffein
 returns markedly more hits than plain LRU at the same memory, and the gap is
 widest exactly where a cache hurts most: when it is small relative to the working
 set.
 
-| Zipf 0.99, cache size | caffea (W-TinyLFU) | plain LRU | vs LRU |
+| Zipf 0.99, cache size | koffein (W-TinyLFU) | plain LRU | vs LRU |
 | --- | ---: | ---: | ---: |
 | 0.1% of footprint | 28.1% | 15.3% | +84% |
 | 1% of footprint | 49.8% | 39.6% | +26% |
 | 10% of footprint | 71.7% | 66.3% | +8% |
 
-caffea lands in the top group with LFU, SIEVE and S3-FIFO, a hair under Belady's
+koffein lands in the top group with LFU, SIEVE and S3-FIFO, a hair under Belady's
 optimal (OPT), and it tracks `transitory` (the other npm W-TinyLFU) to within a
 rounding error: a cross-check that the implementation is sound. On a pure **loop**
-larger than the cache (LRU's textbook worst case) caffea is the only family that
+larger than the cache (LRU's textbook worst case) koffein is the only family that
 recovers any hits at all.
 
-![caffea vs the field on YCSB-skew Zipf](https://raw.githubusercontent.com/destbreso/caffea/main/charts/mrc-zipf-0-99.svg)
+![koffein vs the field on YCSB-skew Zipf](https://raw.githubusercontent.com/destbreso/koffein/main/charts/mrc-zipf-0-99.svg)
 
-**Throughput (the honest tradeoff).** Admission control is not free: caffea does
+**Throughput (the honest tradeoff).** Admission control is not free: koffein does
 more work per operation (a sketch lookup, sometimes an eviction decision) than a
 bare LRU map, so it is not the throughput leader. If your traffic is uniform or
 your cache comfortably holds the working set, LRU's simplicity may serve you
-better. caffea earns its keep when hit ratio is what matters and memory is tight.
+better. koffein earns its keep when hit ratio is what matters and memory is tight.
 Efficiency numbers above are exact (a deterministic simulation); throughput is
 per-machine and per-implementation, reported with 95% confidence intervals in
 [BENCHMARKS.md](./BENCHMARKS.md).
@@ -89,7 +89,7 @@ per-machine and per-implementation, reported with 95% confidence intervals in
 ## Quick start
 
 ```ts
-import { Cache } from "caffea";
+import { Cache } from "koffein";
 
 const cache = new Cache<string, User>(10_000); // hold up to 10k entries
 
@@ -133,7 +133,7 @@ The cache delegates every eviction decision to a policy. The default is
 `WTinyLFU`; swap it with one line, or bring your own.
 
 ```ts
-import { Cache, WTinyLFU, LRU, LFU } from "caffea";
+import { Cache, WTinyLFU, LRU, LFU } from "koffein";
 
 new Cache(cap); //                       W-TinyLFU (the default)
 new Cache(cap, { policy: new LRU() }); // plain LRU
@@ -160,7 +160,7 @@ A policy can also be chosen by a registered name, and you can register your own 
 it is selectable exactly like a built-in:
 
 ```ts
-import { Cache, registerPolicy, policyNames } from "caffea";
+import { Cache, registerPolicy, policyNames } from "koffein";
 
 new Cache(cap, { policy: "lru" }); // built-in names: "w-tinylfu", "lru", "lfu"
 
@@ -181,7 +181,7 @@ when the default of a policy is all you want.
 optional TTL) machine underneath. It is async-aware where it counts.
 
 ```ts
-import { memo } from "caffea";
+import { memo } from "koffein";
 
 const getUser = memo(fetchUser, { capacity: 10_000, ttl: 60_000 });
 
@@ -235,7 +235,7 @@ the `Cache` uses internally. It is exported on its own for any "how hot is this
 key, approximately and cheaply" question.
 
 ```ts
-import { FrequencySketch } from "caffea";
+import { FrequencySketch } from "koffein";
 
 const sketch = new FrequencySketch(1000); // tuned for ~1000 live entries
 
@@ -336,7 +336,7 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),
 adaptive window resizing, and any distributed or multi-backend store (that is
-[`keyv`](https://www.npmjs.com/package/keyv)'s job; caffea stays in-memory).
+[`keyv`](https://www.npmjs.com/package/keyv)'s job; koffein stays in-memory).
 
 ## References
 

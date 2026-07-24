@@ -3,7 +3,7 @@
 //
 // This is the cache's real benchmark, the one the sketch bench could not run:
 // it drives all three policies through the SAME traces and reports hit ratio.
-// The point of caffea is eviction *quality*, and quality only shows up as a hit
+// The point of koffein is eviction *quality*, and quality only shows up as a hit
 // ratio on a workload, so that is what we measure here.
 //
 // Honesty notes:
@@ -70,7 +70,7 @@ function run(label, trace, cap) {
   console.log(`\n== ${label} ==`);
   console.log(`  LRU          ${pct(a)}`);
   console.log(`  LFU          ${pct(b)}`);
-  console.log(`  caffea       ${pct(c)}   (${pts(c - a)} vs LRU, ${pts(c - b)} vs LFU)`);
+  console.log(`  koffein       ${pct(c)}   (${pts(c - a)} vs LRU, ${pts(c - b)} vs LFU)`);
 }
 
 // --- Trace generators ------------------------------------------------------
@@ -128,7 +128,7 @@ function scanTrace({ N, s, M, period, scanLen, seed }) {
  * A shifting working set: P phases, each Zipf-skewed over its OWN disjoint block
  * of keys. The popular set moves on every phase. This is where a no-aging LFU
  * gets stuck worshipping keys that went cold, and where recency (LRU) and aging
- * (caffea) earn their keep.
+ * (koffein) earn their keep.
  */
 function shiftTrace({ block, s, phaseLen, phases, seed }) {
   const rng = mulberry32(seed);
@@ -143,7 +143,7 @@ function shiftTrace({ block, s, phaseLen, phases, seed }) {
 
 // --- Main ------------------------------------------------------------------
 
-console.log("caffea :: hit-ratio bake-off  (W-TinyLFU vs LRU vs LFU)");
+console.log("koffein :: hit-ratio bake-off  (W-TinyLFU vs LRU vs LFU)");
 
 const zipf = zipfTrace({ N: 10_000, s: 0.9, M: 200_000, seed: 11 });
 run("Zipfian  (s=0.90, N=10,000, cap=500, 200,000 reqs)", zipf, 500);
@@ -178,7 +178,7 @@ run(
 // A small capacity sweep on the Zipf trace: the hit-ratio-vs-size curve, the
 // data behind the chart the series promised.
 console.log("\n== Capacity sweep on the Zipfian trace (hit ratio) ==");
-console.log("  cap      LRU       LFU       caffea");
+console.log("  cap      LRU       LFU       koffein");
 for (const cap of [100, 250, 500, 1_000, 2_000]) {
   const a = hitRatio(lru(cap), zipf);
   const b = hitRatio(lfu(cap), zipf);
