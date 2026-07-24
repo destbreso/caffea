@@ -8,9 +8,24 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Next
 
-- `memo` / `adaptiveMemo` wrappers for the "cache this function" case, and an
-  optional string-name policy selector (`{ policy: 'lru' }`) as a thin layer over
-  the interface.
+- An optional string-name policy selector (`{ policy: 'lru' }`) as a thin layer
+  over the interface, and possibly stale-while-revalidate memoization.
+
+## [0.5.0]
+
+### Added
+
+- `memo(fn, options?)`: memoize a sync or async function on top of a cache
+  (W-TinyLFU + optional TTL by default). Async-aware: it caches the *promise*, so
+  concurrent calls for the same key share one in-flight computation (the function
+  runs once, not once per caller), and it evicts the entry if that promise
+  rejects, so a failure is never cached and the next call retries. Keys default to
+  the first argument (pass `keyFn` for multi-argument functions); `capacity`,
+  `ttl`, `clock`, and `policy` pass through to the cache. The returned function
+  carries `.cache`, `.delete(...args)`, `.clear()`, and `.stats()`. A result of
+  `undefined` is treated as "no result" and is not cached. Covered by tests
+  (sync and async caching, in-flight de-duplication, rejection not cached,
+  custom keys, TTL expiry, and the invalidation surface).
 
 ## [0.4.0]
 

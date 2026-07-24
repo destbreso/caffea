@@ -18,13 +18,13 @@ already owns the LRU default and does it well. The wedge here is the eviction
 with the policy swappable so you can run your own bake-off. This is my take on
 that gap, not the one true cache.
 
-> ### Status: early release (0.4.x)
+> ### Status: early release (0.5.x)
 > The **`Cache`** is here with a real, scan-resistant **W-TinyLFU** by default,
-> optional per-entry **TTL**, and a **pluggable eviction policy** (`WTinyLFU`,
-> `LRU`, `LFU`, or your own) so you can run the bake-off on your own traffic. A
-> reproducible hit-ratio bake-off backs the claims. `memo` wrappers are next. The
-> version is `0.x` on purpose: the API can still move. See the
-> [roadmap](#roadmap).
+> optional per-entry **TTL**, a **pluggable eviction policy** (`WTinyLFU`, `LRU`,
+> `LFU`, or your own), and **`memo`** for caching sync or async functions with
+> in-flight de-duplication. A reproducible hit-ratio bake-off backs the claims.
+> The core is feature-complete; the version is `0.x` while the API settles toward
+> 1.0. See the [roadmap](#roadmap).
 
 ## Install
 
@@ -115,6 +115,35 @@ Write your own by implementing `EvictionPolicy<K, V>`: `init(capacity)`,
 `onAdd(node)` (returns a victim to evict or `null`), `onAccess(node)`,
 `onMiss(key)`, `onRemove(node)`, and `clear()`. The `Node` and `EvictionPolicy`
 types are exported for this. TTL is orthogonal and works behind any policy.
+
+## Memoizing a function
+
+`memo` wraps a function so its results are cached, with the whole W-TinyLFU (and
+optional TTL) machine underneath. It is async-aware where it counts.
+
+```ts
+import { memo } from "caffea";
+
+const getUser = memo(fetchUser, { capacity: 10_000, ttl: 60_000 });
+
+await getUser(42); // runs fetchUser(42), caches the result
+await getUser(42); // served from cache
+```
+
+For async functions it caches the **promise**, so two concurrent calls for the
+same key share a single in-flight computation (the function runs once, not once
+per caller). If that promise rejects, the entry is evicted, so a failure is never
+cached and the next call retries.
+
+Keys default to the first argument. For multi-argument functions, pass a `keyFn`:
+
+```ts
+const distance = memo(computeDistance, { keyFn: (from, to) => `${from}->${to}` });
+```
+
+`capacity` (default 1000), `ttl`, `clock`, and `policy` pass through to the
+underlying cache. The memoized function also carries `.delete(...args)` to
+invalidate one call, `.clear()`, `.stats()`, and `.cache` for direct access.
 
 ## Cache API
 
@@ -243,7 +272,7 @@ capacity, and the increment count that triggers aging (`10 x capacity`).
 - [x] TTL (cache-wide default + per-call override, injectable clock)
 - [x] Hit-ratio bake-off (seeded Zipfian / scan / shifting traces vs LRU / LFU)
 - [x] Pluggable `EvictionPolicy` interface (`WTinyLFU` / `LRU` / `LFU` / your own)
-- [ ] `memo` / `adaptiveMemo`
+- [x] `memo` (sync/async, in-flight de-duplication, a rejected result not cached)
 - [ ] Optional string-name policy selector (`{ policy: 'lru' }`) over the interface
 
 Out of scope for v1: ARC and S3-FIFO (behind the policy interface later),

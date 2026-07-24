@@ -13,5 +13,9 @@ export type { WTinyLFUOptions } from "./w-tinylfu";
 // The cache entry a custom policy receives and organizes.
 export type { Node } from "./list";
 
+// Memoize a function on top of the cache (async-aware, with in-flight dedup).
+export { memo } from "./memo";
+export type { MemoOptions, Memoized } from "./memo";
+
 // The frequency estimator behind W-TinyLFU, also usable on its own.
 export { FrequencySketch } from "./frequency-sketch";
