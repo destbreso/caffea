@@ -18,7 +18,40 @@ already owns the LRU default and does it well. The wedge here is the eviction
 with the policy swappable so you can run your own bake-off. This is my take on
 that gap, not the one true cache.
 
-> ### Status: early release (0.5.x)
+## What this is
+
+If none of the words above meant anything, start here.
+
+A **cache** is a small box you keep answers in so you do not have to compute or
+fetch them twice. It is small on purpose, because the whole point is that it
+costs less than the thing it is standing in front of. So the box fills up, and
+every time something new arrives you have to throw something out.
+
+**Which thing you throw out is the entire game.** That decision is called the
+**eviction policy**, and it decides your hit ratio: the fraction of requests the
+box can answer without going to the database, the network or the CPU behind it.
+A cache with a good policy and a cache with a bad one can be the same size and
+differ by a factor of two in how often they help you.
+
+The default policy nearly everywhere is **LRU**: throw out whatever was used
+least recently. It is simple, it is fast, and it has one well-known weakness.
+Sweep a few thousand items through it that nobody will ever ask for again, a
+report job, a crawler, a backup, and LRU dutifully evicts your genuinely hot
+data to make room for garbage it will never be asked for. That is called **scan
+pollution**, and it is the reason your cache hit ratio falls off a cliff at 3am
+for no reason anybody can find.
+
+The fix, known for years and standard on the JVM, is to stop admitting things
+just because they are new. Keep a compact record of **how often** keys are
+requested, and when a newcomer wants in, only let it displace an incumbent if it
+is actually more popular. That is **W-TinyLFU**, and this package is a
+JavaScript implementation of it, with the policy swappable so you can put LRU,
+LFU or your own back in and measure the difference yourself.
+
+So: this is a cache, in the class of **eviction-policy libraries**, competing on
+hit ratio rather than on ergonomics or speed.
+
+> ### Status: early release (0.6.x)
 > The **`Cache`** is here with a real, scan-resistant **W-TinyLFU** by default,
 > optional per-entry **TTL**, a **pluggable eviction policy** (`WTinyLFU`, `LRU`,
 > `LFU`, or your own), and **`memo`** for caching sync or async functions with
@@ -34,6 +67,48 @@ npm install koffein
 
 Ships ESM and CommonJS builds with type declarations. Node >= 18. Zero runtime
 dependencies.
+
+## Quick start
+
+```ts
+import { Cache } from "koffein";
+
+const cache = new Cache<string, User>(10_000); // hold up to 10k entries
+
+cache.set("user:42", user);
+cache.get("user:42"); //  => user
+cache.get("user:999"); // => undefined (a miss)
+
+cache.has("user:42"); //  => true
+cache.peek("user:42"); // read without counting it as a use
+cache.delete("user:42");
+cache.stats(); // { size, capacity, hits, misses, evictions, hitRatio }
+```
+
+Keys can be any type. String and integer keys are hashed for you by the default
+policy; for other key shapes, pass a `hash` to `WTinyLFU` (see
+[Choosing a policy](#choosing-a-policy)).
+
+### Expiry (TTL)
+
+Give entries a time-to-live, cache-wide or per entry. Expiry is lazy: an expired
+entry reads as a miss and frees its slot on the next touch, so there are no
+timers to manage.
+
+```ts
+const sessions = new Cache<string, Session>(10_000, { ttl: 60_000 }); // 60s default
+sessions.set("sid:abc", session); //           expires 60s after this write
+sessions.set("sid:xyz", session, 5 * 60_000); // this one lives 5 minutes
+```
+
+### Why it holds up under scans
+
+The cache records every access in a frequency sketch, and when it is full it
+admits a newcomer into the main region only if the sketch says that newcomer has
+been seen at least as often as the entry it would replace. A key touched once (a
+scan, a crawler, a one-off report) cannot evict a proven-hot entry, which is
+exactly where a plain LRU bleeds hit ratio.
+
 
 ## Why W-TinyLFU
 
@@ -77,55 +152,74 @@ recovers any hits at all.
 
 ![koffein vs the field on YCSB-skew Zipf](https://raw.githubusercontent.com/destbreso/koffein/main/charts/mrc-zipf-0-99.svg)
 
-**Throughput (the honest tradeoff).** Admission control is not free: koffein does
-more work per operation (a sketch lookup, sometimes an eviction decision) than a
-bare LRU map, so it is not the throughput leader. If your traffic is uniform or
-your cache comfortably holds the working set, LRU's simplicity may serve you
-better. koffein earns its keep when hit ratio is what matters and memory is tight.
 Efficiency numbers above are exact (a deterministic simulation); throughput is
 per-machine and per-implementation, reported with 95% confidence intervals in
 [BENCHMARKS.md](./BENCHMARKS.md).
 
-## Quick start
+## Where this earns its place
 
-```ts
-import { Cache } from "koffein";
+The shape to look for is always the same: **the box is small relative to what it
+is standing in front of, and the traffic is uneven.** Uneven traffic is the
+normal case, because real popularity is skewed: a few keys carry most of the
+requests. If both halves are true, the eviction policy is doing real work and it
+is worth caring which one you have.
 
-const cache = new Cache<string, User>(10_000); // hold up to 10k entries
+**A read-through cache in front of a database or an API.** The classic case. Some
+rows are requested constantly and most are requested once, so admission control
+is the difference between serving the hot set from memory and paying for it every
+time. The bigger the gap between your cache size and your working set, the more
+the policy matters: at 0.1% of the footprint the table above shows 28.1% against
+15.3%, which is most of your database load.
 
-cache.set("user:42", user);
-cache.get("user:42"); //  => user
-cache.get("user:999"); // => undefined (a miss)
+**Anything sharing a process with a batch job, a crawler or a report.** This is
+scan pollution and it is the case W-TinyLFU exists for. A sweep of keys nobody
+will request again cannot evict your hot set here, because a newcomer has to
+prove it is more popular than the thing it would displace. On a pure loop larger
+than the cache, LRU's textbook worst case, this is the only family in the
+benchmark that recovers any hits at all.
 
-cache.has("user:42"); //  => true
-cache.peek("user:42"); // read without counting it as a use
-cache.delete("user:42");
-cache.stats(); // { size, capacity, hits, misses, evictions, hitRatio }
-```
+**Memoizing an expensive pure function.** `memo` wraps a sync or async function
+with in-flight de-duplication, so a hundred concurrent callers asking for the
+same uncomputed key produce one computation, not a hundred. Rate-limited API
+clients, template compilation, parsing, hashing, image transforms.
 
-Keys can be any type. String and integer keys are hashed for you by the default
-policy; for other key shapes, pass a `hash` to `WTinyLFU` (see
-[Choosing a policy](#choosing-a-policy)).
+**Serverless and edge, where memory is the billed resource.** A higher hit ratio
+at the same memory is directly a smaller instance or a smaller bill, and zero
+dependencies means nothing to install at a cold start.
 
-### Expiry (TTL)
+**When you actually want to run the bake-off.** The policy is a constructor
+argument, and `LRU`, `LFU` and your own implementation all plug into the same
+interface, so "is this better for my traffic" is a question you can answer on
+your own trace instead of taking my word for it.
 
-Give entries a time-to-live, cache-wide or per entry. Expiry is lazy: an expired
-entry reads as a miss and frees its slot on the next touch, so there are no
-timers to manage.
+## When not to use this
 
-```ts
-const sessions = new Cache<string, Session>(10_000, { ttl: 60_000 }); // 60s default
-sessions.set("sid:abc", session); //           expires 60s after this write
-sessions.set("sid:xyz", session, 5 * 60_000); // this one lives 5 minutes
-```
+Both ends, because a package that only names one is advertising.
 
-### Why it holds up under scans
+**Your working set fits comfortably in the cache.** If almost nothing ever gets
+evicted, the eviction policy is answering a question that never comes up. You are
+paying for a frequency sketch and an admission decision to arrange items you were
+never going to throw out. Use a `Map`, or `lru-cache` for the ergonomics.
 
-The cache records every access in a frequency sketch, and when it is full it
-admits a newcomer into the main region only if the sketch says that newcomer has
-been seen at least as often as the entry it would replace. A key touched once (a
-scan, a crawler, a one-off report) cannot evict a proven-hot entry, which is
-exactly where a plain LRU bleeds hit ratio.
+**Your traffic is uniform.** Admission control works by betting that popularity
+is predictive. If every key really is equally likely, there is nothing to
+predict, the sketch is overhead, and LRU's simplicity wins.
+
+**Throughput is your bottleneck, not hit ratio.** Admission is not free: koffein
+does more work per operation than a bare LRU map, a sketch lookup and sometimes
+an eviction decision, so it is not the throughput leader. If your backing store
+is fast and your cache is doing millions of operations a second, the cheaper
+policy may serve you better even at a lower hit ratio. That is a real trade and
+the numbers for both sides are in [BENCHMARKS.md](./BENCHMARKS.md).
+
+**You need a distributed or persistent cache.** This is an in-process, in-memory
+cache. It does not replicate, it does not survive a restart, and it has no
+opinion about invalidation across instances. Reach for Redis or Memcached.
+
+What is left, and what this package is for: an in-process cache that is smaller
+than its working set, on skewed or bursty traffic, where a hit ratio point is
+worth more to you than a nanosecond.
+
 
 ## Choosing a policy
 
